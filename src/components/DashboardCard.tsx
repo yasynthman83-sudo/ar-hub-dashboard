@@ -14,12 +14,12 @@ const iconMap: Record<string, LucideIcon> = {
 };
 
 const colorClasses: Record<string, string> = {
-  blue: "bg-primary/10 text-primary",
-  green: "bg-emerald-100 text-emerald-600",
-  purple: "bg-violet-100 text-violet-600",
-  orange: "bg-orange-100 text-orange-600",
-  teal: "bg-teal-100 text-teal-600",
-  indigo: "bg-indigo-100 text-indigo-600",
+  blue: "bg-primary/20 text-primary",
+  green: "bg-primary/20 text-primary",
+  purple: "bg-primary/20 text-primary",
+  orange: "bg-primary/20 text-primary",
+  teal: "bg-primary/20 text-primary",
+  indigo: "bg-primary/20 text-primary",
 };
 
 interface DashboardCardProps {
@@ -50,7 +50,7 @@ export function DashboardCard({ link, index }: DashboardCardProps) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="font-semibold text-lg text-foreground group-hover:text-primary transition-colors">
+            <h3 className="font-semibold text-lg text-card-foreground group-hover:text-primary transition-colors">
               {link.title}
             </h3>
             <ExternalLink className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />

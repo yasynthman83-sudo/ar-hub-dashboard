@@ -1,15 +1,19 @@
-import { LayoutDashboard } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 export function DashboardHeader() {
   return (
     <header className="text-center mb-12 animate-fade-in">
-      <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-6">
-        <LayoutDashboard className="w-8 h-8 text-primary" />
+      <div className="inline-flex items-center justify-center mb-6">
+        <img 
+          src={logo} 
+          alt="فدشي" 
+          className="h-20 md:h-24 w-auto"
+        />
       </div>
-      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3">
+      <h1 className="text-2xl md:text-3xl font-bold text-primary-foreground mb-3">
         لوحة التحكم الرئيسية
       </h1>
-      <p className="text-muted-foreground text-lg max-w-md mx-auto">
+      <p className="text-muted-foreground text-base max-w-md mx-auto">
         بوابتك الموحدة للوصول إلى جميع الأنظمة والخدمات
       </p>
     </header>
