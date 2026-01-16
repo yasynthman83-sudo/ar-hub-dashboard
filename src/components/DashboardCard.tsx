@@ -5,6 +5,7 @@ import {
   ExternalLink,
   type LucideIcon,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import type { DashboardLink } from "@/config/dashboardLinks";
 
 const iconMap: Record<string, LucideIcon> = {
@@ -28,12 +29,17 @@ interface DashboardCardProps {
 }
 
 export function DashboardCard({ link, index }: DashboardCardProps) {
+  const navigate = useNavigate();
   const Icon = iconMap[link.icon] || Package;
   const colorClass = colorClasses[link.color] || colorClasses.blue;
 
   const handleClick = () => {
-    // فتح الرابط في نفس التبويب
-    window.location.href = link.url;
+    // فتح الرابط داخل صفحة العرض مع زر العودة
+    const params = new URLSearchParams({
+      url: link.url,
+      title: link.title,
+    });
+    navigate(`/view?${params.toString()}`);
   };
 
   return (
