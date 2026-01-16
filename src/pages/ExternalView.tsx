@@ -51,7 +51,8 @@ export default function ExternalView() {
         src={url}
         className="flex-1 w-full border-0"
         title={title}
-        allow="fullscreen"
+        allow="camera; microphone; fullscreen; geolocation; clipboard-read; clipboard-write"
+        allowFullScreen
       />
     </div>
   );
