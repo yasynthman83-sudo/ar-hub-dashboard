@@ -1,22 +1,16 @@
 import {
-  Users,
-  Wallet,
-  FolderKanban,
-  Headphones,
+  ClipboardList,
+  Search,
   Package,
-  BarChart3,
   ExternalLink,
   type LucideIcon,
 } from "lucide-react";
 import type { DashboardLink } from "@/config/dashboardLinks";
 
 const iconMap: Record<string, LucideIcon> = {
-  Users,
-  Wallet,
-  FolderKanban,
-  Headphones,
+  ClipboardList,
+  Search,
   Package,
-  BarChart3,
 };
 
 const colorClasses: Record<string, string> = {
