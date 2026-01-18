@@ -35,4 +35,12 @@ export const dashboardLinks: DashboardLink[] = [
     icon: "Package",
     color: "green",
   },
+  {
+    id: "4",
+    title: "الحضور",
+    description: "الحضور والاجازات ",
+    url: "https://checkin-cheery-sheet.lovable.app",
+    icon: "Package",
+    color: "green",
+  },
 ];
