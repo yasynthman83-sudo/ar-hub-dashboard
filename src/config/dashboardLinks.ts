@@ -27,20 +27,4 @@ export const dashboardLinks: DashboardLink[] = [
     icon: "Search",
     color: "orange",
   },
-  {
-    id: "3",
-    title: "اضافة تخزين",
-    description: "إدارة المخزون والتخزين",
-    url: "https://scan-find-assign.lovable.app/storage",
-    icon: "Package",
-    color: "green",
-  },
-  {
-    id: "4",
-    title: "الحضور",
-    description: "الحضور والاجازات ",
-    url: "https://checkin-cheery-sheet.lovable.app",
-    icon: "Package",
-    color: "green",
-  },
 ];
