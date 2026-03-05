@@ -27,4 +27,12 @@ export const dashboardLinks: DashboardLink[] = [
     icon: "Search",
     color: "orange",
   },
+  {
+    id: "3",
+    title: "الاجازات",
+    description: "إدارة الإجازات والطلبات",
+    url: "https://baker-leave-buddy.lovable.app/login",
+    icon: "Package",
+    color: "green",
+  },
 ];
