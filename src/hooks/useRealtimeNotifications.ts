@@ -9,6 +9,19 @@ export function useRealtimeNotifications() {
       Notification.requestPermission();
     }
 
+    // Test Supabase connection first
+    supabase
+      .from("notification1")
+      .select("*", { count: "exact", head: true })
+      .then(({ count, error }) => {
+        if (error) {
+          console.error("❌ Cannot access notification1 table:", error.message);
+          console.error("💡 You need to add an RLS policy: ALTER TABLE notification1 ENABLE ROW LEVEL SECURITY; CREATE POLICY \"Allow anon select\" ON notification1 FOR SELECT USING (true);");
+        } else {
+          console.log(`✅ notification1 table accessible. Row count: ${count}`);
+        }
+      });
+
     console.log("🔔 Subscribing to notification1 realtime channel...");
 
     const channel = supabase
@@ -38,8 +51,17 @@ export function useRealtimeNotifications() {
           }
         }
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
         console.log("🔔 Realtime subscription status:", status);
+        if (err) {
+          console.error("❌ Realtime subscription error:", err);
+        }
+        if (status === "SUBSCRIBED") {
+          console.log("✅ Successfully subscribed to notification1 realtime changes!");
+        }
+        if (status === "CHANNEL_ERROR") {
+          console.error("❌ Channel error - check if Realtime is enabled for notification1 table and RLS allows SELECT");
+        }
       });
 
     return () => {
