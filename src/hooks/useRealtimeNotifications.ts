@@ -89,10 +89,9 @@ export function useRealtimeNotifications() {
                     body: 'بكلست جديدة',
                     icon: '/favicon.ico',
                     tag: 'picklist-' + Date.now(),
-                    renotify: true,
                     requireInteraction: true,
                     vibrate: [200, 100, 200],
-                  });
+                  } as NotificationOptions);
                 });
               }
             });
