@@ -6,15 +6,6 @@ export function useRealtimeNotifications() {
   const permissionGranted = useRef(false);
 
   useEffect(() => {
-    // Register Service Worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').then((reg) => {
-        console.log('✅ Service Worker registered:', reg.scope);
-      }).catch((err) => {
-        console.error('❌ Service Worker registration failed:', err);
-      });
-    }
-
     // Request notification permission immediately
     if ("Notification" in window) {
       if (Notification.permission === "granted") {
