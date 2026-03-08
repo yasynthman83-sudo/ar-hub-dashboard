@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
       strategies: "injectManifest",
       srcDir: "src",
       filename: "sw.ts",
-      registerType: "autoUpdate",
+      injectRegister: false,
       includeAssets: ["favicon.ico", "robots.txt"],
       injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
