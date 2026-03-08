@@ -6,46 +6,66 @@ import { toast } from "sonner";
 async function subscribeToPush() {
   try {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      console.warn("❌ Push API not supported");
+      console.warn("❌ Push API not supported on this device");
       return;
     }
 
-    const registration = await navigator.serviceWorker.ready;
-    console.log("✅ Service Worker ready for push");
+    // Wait for SW with timeout
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("SW ready timeout")), 10000)
+      ),
+    ]);
 
-    // Check existing subscription - unsubscribe if VAPID key changed
+    console.log("✅ Service Worker ready, scope:", registration.scope);
+
+    // Check existing subscription
     let subscription = await registration.pushManager.getSubscription();
+
     if (subscription) {
-      console.log("✅ Already subscribed to push, re-sending to server");
-      // Re-store in case it wasn't saved
-      const subJson = subscription.toJSON();
-      await cloudSupabase.from("push_subscriptions").upsert(
-        {
-          endpoint: subJson.endpoint!,
-          p256dh: subJson.keys!.p256dh!,
-          auth: subJson.keys!.auth!,
-        },
-        { onConflict: "endpoint" }
-      );
-      return;
+      // Validate subscription is still valid by checking permissionState
+      const permState = await registration.pushManager.permissionState({
+        userVisibleOnly: true,
+      });
+      console.log("🔑 Push permission state:", permState);
+
+      if (permState !== "granted") {
+        console.warn("⚠️ Push permission revoked, unsubscribing...");
+        await subscription.unsubscribe();
+        subscription = null;
+      } else {
+        console.log("✅ Existing push subscription valid, re-syncing to server");
+        const subJson = subscription.toJSON();
+        await cloudSupabase.from("push_subscriptions").upsert(
+          {
+            endpoint: subJson.endpoint!,
+            p256dh: subJson.keys!.p256dh!,
+            auth: subJson.keys!.auth!,
+          },
+          { onConflict: "endpoint" }
+        );
+        console.log("✅ Subscription synced. Endpoint:", subJson.endpoint?.substring(0, 60));
+        return;
+      }
     }
 
     // Get VAPID public key from edge function
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    
+
     const vapidRes = await fetch(
       `https://${projectId}.supabase.co/functions/v1/web-push?action=vapid-key`,
       { headers: { Authorization: `Bearer ${anonKey}`, apikey: anonKey } }
     );
     const { publicKey } = await vapidRes.json();
-    
+
     if (!publicKey) {
-      console.error("❌ No VAPID public key");
+      console.error("❌ No VAPID public key received");
       return;
     }
 
-    console.log("🔑 Got VAPID key, subscribing...");
+    console.log("🔑 Got VAPID key, creating new subscription...");
 
     // Convert base64url to Uint8Array
     const padding = "=".repeat((4 - (publicKey.length % 4)) % 4);
@@ -61,7 +81,7 @@ async function subscribeToPush() {
       applicationServerKey,
     });
 
-    console.log("✅ Push subscription created:", subscription.endpoint);
+    console.log("✅ New push subscription created:", subscription.endpoint.substring(0, 60));
 
     // Store subscription in Cloud database
     const subJson = subscription.toJSON();
@@ -77,7 +97,7 @@ async function subscribeToPush() {
     if (error) {
       console.error("❌ Failed to store subscription:", error);
     } else {
-      console.log("✅ Push subscription stored in database");
+      console.log("✅ Push subscription stored successfully");
     }
   } catch (err) {
     console.error("❌ Push subscription failed:", err);
@@ -85,25 +105,32 @@ async function subscribeToPush() {
 }
 
 export function useRealtimeNotifications() {
-  const permissionGranted = useRef(false);
+  const hasSubscribed = useRef(false);
 
   useEffect(() => {
-    // Request notification permission
-    if ("Notification" in window) {
-      if (Notification.permission === "granted") {
-        permissionGranted.current = true;
-        console.log("✅ Notification permission already granted");
-        // Subscribe to Web Push
-        subscribeToPush();
-      } else if (Notification.permission === "default") {
-        Notification.requestPermission().then((result) => {
-          console.log("🔔 Notification permission result:", result);
-          if (result === "granted") {
-            permissionGranted.current = true;
-            subscribeToPush();
-          }
-        });
-      }
+    // Request notification permission and subscribe to push
+    if ("Notification" in window && !hasSubscribed.current) {
+      hasSubscribed.current = true;
+
+      const setupPush = async () => {
+        let permission = Notification.permission;
+        console.log("🔔 Current notification permission:", permission);
+
+        if (permission === "default") {
+          permission = await Notification.requestPermission();
+          console.log("🔔 Permission result:", permission);
+        }
+
+        if (permission === "granted") {
+          // Small delay to ensure SW is registered
+          await new Promise((r) => setTimeout(r, 1500));
+          await subscribeToPush();
+        } else {
+          console.warn("⚠️ Notification permission denied");
+        }
+      };
+
+      setupPush();
     }
 
     // Test Supabase connection
