@@ -62,9 +62,24 @@ export function useRealtimeNotifications() {
             duration: 10000,
           });
 
-          // Native browser notification
+          // Log current permission status
+          console.log('Current Permission:', Notification.permission);
+
+          // Native notification via Service Worker
           if (Notification.permission === 'granted') {
-            new Notification('إشعار جديد', { body: 'تم إضافة بيانات جديدة في الجدول' });
+            navigator.serviceWorker.ready.then((registration) => {
+              registration.showNotification('إشعار جديد', {
+                body: 'تم إضافة بيانات جديدة في الجدول',
+                icon: '/favicon.ico',
+                requireInteraction: true,
+              });
+              console.log('✅ Native notification sent via Service Worker');
+            }).catch((err) => {
+              console.error('❌ Service Worker notification failed:', err);
+              alert('فشل إرسال إشعار النظام: ' + err.message);
+            });
+          } else {
+            alert('إذن الإشعارات غير ممنوح. الحالة: ' + Notification.permission);
           }
         }
       )
