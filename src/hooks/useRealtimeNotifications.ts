@@ -128,28 +128,11 @@ export function useRealtimeNotifications() {
         (payload) => {
           console.log("🔔 New notification received:", payload);
 
-          // In-app toast
+          // In-app toast only - Push is handled by Database Webhook
           toast("New Pick List 📋", {
             description: "تمت إضافة بيك لست جديدة",
             duration: 10000,
           });
-
-          // Also trigger push via edge function (for other devices)
-          const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-          const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-          fetch(`https://${projectId}.supabase.co/functions/v1/web-push`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${anonKey}`,
-              apikey: anonKey,
-            },
-            body: JSON.stringify({
-              action: "send",
-              title: "📋 New Pick List",
-              body: "بكلست جديدة",
-            }),
-          }).catch((err) => console.error("❌ Push send failed:", err));
         }
       )
       .subscribe((status, err) => {
