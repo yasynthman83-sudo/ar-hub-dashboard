@@ -26,7 +26,7 @@ self.addEventListener('push', function (event) {
     }
   }
 
-  const options: NotificationOptions = {
+  const options: any = {
     body: data.body || 'بكلست جديدة',
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
