@@ -68,8 +68,8 @@ export function useRealtimeNotifications() {
           // Native notification via Service Worker
           if (Notification.permission === 'granted') {
             navigator.serviceWorker.ready.then((registration) => {
-              registration.showNotification('إشعار جديد', {
-                body: 'تم إضافة بيانات جديدة في الجدول',
+              registration.showNotification('New Pick List', {
+                body: 'بكلست جديدة',
                 icon: '/favicon.ico',
                 requireInteraction: true,
               });
