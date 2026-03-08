@@ -62,41 +62,38 @@ export function useRealtimeNotifications() {
             duration: 10000,
           });
 
-          // Log current permission status
-          console.log('Current Permission:', Notification.permission);
-
-          // Native notification via Service Worker
+          // Native notification - try direct API first, then SW fallback
           if (Notification.permission === 'granted') {
-            navigator.serviceWorker.ready.then((registration) => {
-              registration.showNotification('New Pick List', {
+            try {
+              // Direct Notification API (works when page is open)
+              const n = new Notification('📋 New Pick List', {
                 body: 'بكلست جديدة',
                 icon: '/favicon.ico',
                 tag: 'picklist-' + Date.now(),
                 requireInteraction: true,
-                vibrate: [200, 100, 200],
-                silent: false,
-              } as NotificationOptions);
-              console.log('✅ Native notification sent via Service Worker');
-            }).catch((err) => {
-              console.error('❌ Service Worker notification failed:', err);
-              alert('فشل إرسال إشعار النظام: ' + err.message);
-            });
-          } else if (Notification.permission === 'default') {
-            Notification.requestPermission().then((result) => {
-              if (result === 'granted') {
-                navigator.serviceWorker.ready.then((registration) => {
-                  registration.showNotification('New Pick List', {
-                    body: 'بكلست جديدة',
-                    icon: '/favicon.ico',
-                    tag: 'picklist-' + Date.now(),
-                    requireInteraction: true,
-                    vibrate: [200, 100, 200],
-                  } as NotificationOptions);
-                });
-              }
-            });
+              });
+              console.log('✅ Direct Notification created:', n);
+              n.onclick = () => {
+                window.focus();
+                n.close();
+              };
+            } catch (e) {
+              console.warn('⚠️ Direct Notification failed, trying SW:', e);
+              // Fallback to Service Worker (for mobile/restricted environments)
+              navigator.serviceWorker?.ready.then((reg) => {
+                reg.showNotification('📋 New Pick List', {
+                  body: 'بكلست جديدة',
+                  icon: '/favicon.ico',
+                  tag: 'picklist-sw-' + Date.now(),
+                  requireInteraction: true,
+                  vibrate: [200, 100, 200],
+                } as NotificationOptions);
+                console.log('✅ SW Notification sent');
+              });
+            }
           } else {
-            alert('إذن الإشعارات مرفوض. يرجى تفعيله من إعدادات المتصفح.');
+            console.warn('❌ Permission status:', Notification.permission);
+            alert('إذن الإشعارات: ' + Notification.permission + '. يرجى تفعيله من إعدادات المتصفح.');
           }
         }
       )
