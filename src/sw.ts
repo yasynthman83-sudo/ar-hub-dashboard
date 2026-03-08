@@ -16,7 +16,7 @@ precacheAndRoute(self.__WB_MANIFEST);
 self.addEventListener('push', function (event) {
   console.log('[SW] Push received:', event);
 
-  let data = { title: '📋 New Pick List', body: 'بكلست جديدة' };
+  let data: any = { title: '📋 New Pick List', body: 'بكلست جديدة' };
 
   if (event.data) {
     try {
@@ -31,10 +31,11 @@ self.addEventListener('push', function (event) {
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
     vibrate: [200, 100, 200],
-    tag: 'picklist-' + Date.now(),
+    tag: 'picklist-notification',
     renotify: true,
-    requireInteraction: true,
-    data: { url: '/' },
+    requireInteraction: false,
+    silent: false,
+    data: { url: '/', timestamp: Date.now() },
   };
 
   event.waitUntil(
@@ -51,11 +52,18 @@ self.addEventListener('notificationclick', function (event) {
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then(function (clientList) {
         for (const client of clientList) {
-          if (client.visibilityState === 'visible') {
+          if ('focus' in client) {
             return client.focus();
           }
         }
         return self.clients.openWindow('/');
       })
   );
+});
+
+// Keep SW alive - respond to periodic sync if available
+self.addEventListener('periodicsync', function (event: any) {
+  if (event.tag === 'keep-alive') {
+    event.waitUntil(Promise.resolve());
+  }
 });
