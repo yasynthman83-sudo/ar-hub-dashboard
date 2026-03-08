@@ -72,11 +72,10 @@ export function useRealtimeNotifications() {
                 body: 'بكلست جديدة',
                 icon: '/favicon.ico',
                 tag: 'picklist-' + Date.now(),
-                renotify: true,
                 requireInteraction: true,
                 vibrate: [200, 100, 200],
                 silent: false,
-              });
+              } as NotificationOptions);
               console.log('✅ Native notification sent via Service Worker');
             }).catch((err) => {
               console.error('❌ Service Worker notification failed:', err);
