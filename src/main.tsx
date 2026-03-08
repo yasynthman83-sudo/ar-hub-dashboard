@@ -1,14 +1,9 @@
 import { createRoot } from "react-dom/client";
+import { registerSW } from "virtual:pwa-register";
 import App from "./App.tsx";
 import "./index.css";
 
-// Register PWA Service Worker
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((err) => {
-      console.log("SW registration failed:", err);
-    });
-  });
-}
+// Register PWA Service Worker (handled by vite-plugin-pwa)
+registerSW({ immediate: true });
 
 createRoot(document.getElementById("root")!).render(<App />);
