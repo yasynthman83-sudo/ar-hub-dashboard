@@ -71,15 +71,32 @@ export function useRealtimeNotifications() {
               registration.showNotification('New Pick List', {
                 body: 'بكلست جديدة',
                 icon: '/favicon.ico',
+                tag: 'picklist-' + Date.now(),
                 requireInteraction: true,
-              });
+                vibrate: [200, 100, 200],
+                silent: false,
+              } as NotificationOptions);
               console.log('✅ Native notification sent via Service Worker');
             }).catch((err) => {
               console.error('❌ Service Worker notification failed:', err);
               alert('فشل إرسال إشعار النظام: ' + err.message);
             });
+          } else if (Notification.permission === 'default') {
+            Notification.requestPermission().then((result) => {
+              if (result === 'granted') {
+                navigator.serviceWorker.ready.then((registration) => {
+                  registration.showNotification('New Pick List', {
+                    body: 'بكلست جديدة',
+                    icon: '/favicon.ico',
+                    tag: 'picklist-' + Date.now(),
+                    requireInteraction: true,
+                    vibrate: [200, 100, 200],
+                  } as NotificationOptions);
+                });
+              }
+            });
           } else {
-            alert('إذن الإشعارات غير ممنوح. الحالة: ' + Notification.permission);
+            alert('إذن الإشعارات مرفوض. يرجى تفعيله من إعدادات المتصفح.');
           }
         }
       )
