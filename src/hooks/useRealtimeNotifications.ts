@@ -58,26 +58,9 @@ export function useRealtimeNotifications() {
             duration: 10000,
           });
 
-          // Native browser notification (shows in OS notification panel)
-          if ("Notification" in window && Notification.permission === "granted") {
-            try {
-              const notification = new Notification("📋 New Pick List", {
-                body: "تمت إضافة بيك لست جديدة",
-                icon: "/favicon.ico",
-                tag: "picklist-" + Date.now(),
-                requireInteraction: true,
-              });
-              notification.onclick = () => {
-                window.focus();
-                notification.close();
-              };
-              console.log("✅ Native notification sent successfully");
-            } catch (e) {
-              console.error("❌ Native notification failed:", e);
-            }
-          } else {
-            console.warn("⚠️ Cannot send native notification. Permission:", 
-              "Notification" in window ? Notification.permission : "not supported");
+          // Native browser notification
+          if (Notification.permission === 'granted') {
+            new Notification('إشعار جديد', { body: 'تم إضافة بيانات جديدة في الجدول' });
           }
         }
       )
