@@ -6,6 +6,15 @@ export function useRealtimeNotifications() {
   const permissionGranted = useRef(false);
 
   useEffect(() => {
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        console.log('✅ Service Worker registered:', reg.scope);
+      }).catch((err) => {
+        console.error('❌ Service Worker registration failed:', err);
+      });
+    }
+
     // Request notification permission immediately
     if ("Notification" in window) {
       if (Notification.permission === "granted") {
@@ -16,11 +25,6 @@ export function useRealtimeNotifications() {
           console.log("🔔 Notification permission result:", result);
           if (result === "granted") {
             permissionGranted.current = true;
-            // Send a test notification to confirm it works
-            new Notification("تم تفعيل الإشعارات ✅", {
-              body: "ستصلك إشعارات عند إضافة بيك لست جديدة",
-              icon: "/favicon.ico",
-            });
           }
         });
       } else {
