@@ -6,51 +6,49 @@ import { toast } from "sonner";
 async function subscribeToPush() {
   try {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      console.warn("❌ Push API not supported on this device");
+      console.warn("❌ Push API not supported");
       return;
     }
 
-    // Wait for SW with timeout
+    // Wait for SW ready
     const registration = await Promise.race([
       navigator.serviceWorker.ready,
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("SW ready timeout")), 10000)
+        setTimeout(() => reject(new Error("SW ready timeout")), 15000)
       ),
     ]);
 
-    console.log("✅ Service Worker ready, scope:", registration.scope);
+    console.log("✅ SW ready, scope:", registration.scope);
 
     // Check existing subscription
     let subscription = await registration.pushManager.getSubscription();
 
     if (subscription) {
-      // Validate subscription is still valid by checking permissionState
-      const permState = await registration.pushManager.permissionState({
-        userVisibleOnly: true,
-      });
-      console.log("🔑 Push permission state:", permState);
-
-      if (permState !== "granted") {
-        console.warn("⚠️ Push permission revoked, unsubscribing...");
+      console.log("✅ Existing subscription found, syncing...");
+      const subJson = subscription.toJSON();
+      
+      // Always re-sync to database
+      const { error } = await cloudSupabase.from("push_subscriptions").upsert(
+        {
+          endpoint: subJson.endpoint!,
+          p256dh: subJson.keys!.p256dh!,
+          auth: subJson.keys!.auth!,
+        },
+        { onConflict: "endpoint" }
+      );
+      
+      if (error) {
+        console.error("❌ Sync failed:", error.message);
+        // If sync fails, try to unsubscribe and resubscribe
         await subscription.unsubscribe();
         subscription = null;
       } else {
-        console.log("✅ Existing push subscription valid, re-syncing to server");
-        const subJson = subscription.toJSON();
-        await cloudSupabase.from("push_subscriptions").upsert(
-          {
-            endpoint: subJson.endpoint!,
-            p256dh: subJson.keys!.p256dh!,
-            auth: subJson.keys!.auth!,
-          },
-          { onConflict: "endpoint" }
-        );
-        console.log("✅ Subscription synced. Endpoint:", subJson.endpoint?.substring(0, 60));
+        console.log("✅ Subscription synced successfully");
         return;
       }
     }
 
-    // Get VAPID public key from edge function
+    // Get VAPID key
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -58,14 +56,19 @@ async function subscribeToPush() {
       `https://${projectId}.supabase.co/functions/v1/web-push?action=vapid-key`,
       { headers: { Authorization: `Bearer ${anonKey}`, apikey: anonKey } }
     );
+    
+    if (!vapidRes.ok) {
+      console.error("❌ VAPID fetch failed:", vapidRes.status);
+      return;
+    }
+    
     const { publicKey } = await vapidRes.json();
-
     if (!publicKey) {
-      console.error("❌ No VAPID public key received");
+      console.error("❌ No VAPID key received");
       return;
     }
 
-    console.log("🔑 Got VAPID key, creating new subscription...");
+    console.log("🔑 Got VAPID key, subscribing...");
 
     // Convert base64url to Uint8Array
     const padding = "=".repeat((4 - (publicKey.length % 4)) % 4);
@@ -81,9 +84,9 @@ async function subscribeToPush() {
       applicationServerKey,
     });
 
-    console.log("✅ New push subscription created:", subscription.endpoint.substring(0, 60));
+    console.log("✅ New push subscription created");
 
-    // Store subscription in Cloud database
+    // Store in database
     const subJson = subscription.toJSON();
     const { error } = await cloudSupabase.from("push_subscriptions").upsert(
       {
@@ -95,9 +98,21 @@ async function subscribeToPush() {
     );
 
     if (error) {
-      console.error("❌ Failed to store subscription:", error);
+      console.error("❌ Failed to store subscription:", error.message);
     } else {
       console.log("✅ Push subscription stored successfully");
+    }
+
+    // Try to register periodic sync to keep SW alive
+    if ('periodicSync' in registration) {
+      try {
+        await (registration as any).periodicSync.register('keep-alive', {
+          minInterval: 12 * 60 * 60 * 1000, // 12 hours
+        });
+        console.log("✅ Periodic sync registered");
+      } catch (e) {
+        console.log("ℹ️ Periodic sync not available");
+      }
     }
   } catch (err) {
     console.error("❌ Push subscription failed:", err);
@@ -108,13 +123,13 @@ export function useRealtimeNotifications() {
   const hasSubscribed = useRef(false);
 
   useEffect(() => {
-    // Request notification permission and subscribe to push
+    // Subscribe to push notifications
     if ("Notification" in window && !hasSubscribed.current) {
       hasSubscribed.current = true;
 
       const setupPush = async () => {
         let permission = Notification.permission;
-        console.log("🔔 Current notification permission:", permission);
+        console.log("🔔 Notification permission:", permission);
 
         if (permission === "default") {
           permission = await Notification.requestPermission();
@@ -122,8 +137,8 @@ export function useRealtimeNotifications() {
         }
 
         if (permission === "granted") {
-          // Small delay to ensure SW is registered
-          await new Promise((r) => setTimeout(r, 1500));
+          // Small delay for SW to stabilize
+          await new Promise((r) => setTimeout(r, 1000));
           await subscribeToPush();
         } else {
           console.warn("⚠️ Notification permission denied");
@@ -133,29 +148,27 @@ export function useRealtimeNotifications() {
       setupPush();
     }
 
-    // Test Supabase connection
+    // Test external Supabase connection
     supabase
       .from("notification1")
       .select("*", { count: "exact", head: true })
       .then(({ count, error }) => {
         if (error) {
-          console.error("❌ Cannot access notification1 table:", error.message);
+          console.error("❌ notification1 error:", error.message);
         } else {
-          console.log(`✅ notification1 table accessible. Row count: ${count}`);
+          console.log(`✅ notification1 accessible. Rows: ${count}`);
         }
       });
 
-    console.log("🔔 Subscribing to notification1 realtime channel...");
-
+    // Subscribe to realtime inserts for in-app toast
+    console.log("🔔 Subscribing to notification1...");
     const channel = supabase
       .channel("notification1-inserts")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notification1" },
         (payload) => {
-          console.log("🔔 New notification received:", payload);
-
-          // In-app toast only - Push is handled by Database Webhook
+          console.log("🔔 New notification:", payload);
           toast("New Pick List 📋", {
             description: "تمت إضافة بيك لست جديدة",
             duration: 10000,
@@ -163,9 +176,8 @@ export function useRealtimeNotifications() {
         }
       )
       .subscribe((status, err) => {
-        console.log("🔔 Realtime subscription status:", status);
+        console.log("🔔 Realtime status:", status);
         if (err) console.error("❌ Realtime error:", err);
-        if (status === "SUBSCRIBED") console.log("✅ Subscribed to notification1!");
       });
 
     return () => {
