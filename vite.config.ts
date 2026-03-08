@@ -21,6 +21,8 @@ export default defineConfig(({ mode }) => ({
       includeAssets: ["favicon.ico", "robots.txt"],
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        importScripts: ["/push-sw.js"],
+        navigateFallbackDenylist: [/^\/~oauth/],
       },
       manifest: {
         name: "لوحة التحكم الرئيسية",
