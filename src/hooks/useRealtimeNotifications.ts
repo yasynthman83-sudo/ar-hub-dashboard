@@ -13,10 +13,20 @@ async function subscribeToPush() {
     const registration = await navigator.serviceWorker.ready;
     console.log("✅ Service Worker ready for push");
 
-    // Check existing subscription
+    // Check existing subscription - unsubscribe if VAPID key changed
     let subscription = await registration.pushManager.getSubscription();
     if (subscription) {
-      console.log("✅ Already subscribed to push");
+      console.log("✅ Already subscribed to push, re-sending to server");
+      // Re-store in case it wasn't saved
+      const subJson = subscription.toJSON();
+      await cloudSupabase.from("push_subscriptions").upsert(
+        {
+          endpoint: subJson.endpoint!,
+          p256dh: subJson.keys!.p256dh!,
+          auth: subJson.keys!.auth!,
+        },
+        { onConflict: "endpoint" }
+      );
       return;
     }
 
