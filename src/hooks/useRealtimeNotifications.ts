@@ -62,38 +62,48 @@ export function useRealtimeNotifications() {
             duration: 10000,
           });
 
-          // Native notification - try direct API first, then SW fallback
+          // Native notification - ALWAYS use Service Worker first (required for mobile)
           if (Notification.permission === 'granted') {
-            try {
-              // Direct Notification API (works when page is open)
-              const n = new Notification('📋 New Pick List', {
-                body: 'بكلست جديدة',
-                icon: '/favicon.ico',
-                tag: 'picklist-' + Date.now(),
-                requireInteraction: true,
+            const notifTitle = '📋 New Pick List';
+            const notifOptions = {
+              body: 'بكلست جديدة',
+              icon: '/favicon.ico',
+              badge: '/favicon.ico',
+              tag: 'picklist-' + Date.now(),
+              requireInteraction: true,
+              vibrate: [200, 100, 200],
+              silent: false,
+              renotify: true,
+            };
+
+            // Try Service Worker first (works on mobile + desktop)
+            if (navigator.serviceWorker?.controller) {
+              navigator.serviceWorker.ready.then((reg) => {
+                reg.showNotification(notifTitle, notifOptions as NotificationOptions)
+                  .then(() => console.log('✅ SW Notification sent successfully'))
+                  .catch((err) => {
+                    console.warn('⚠️ SW Notification failed:', err);
+                    // Fallback to direct API (desktop only)
+                    try {
+                      const n = new Notification(notifTitle, notifOptions);
+                      console.log('✅ Direct Notification fallback:', n);
+                    } catch (e2) {
+                      console.error('❌ All notification methods failed:', e2);
+                    }
+                  });
               });
-              console.log('✅ Direct Notification created:', n);
-              n.onclick = () => {
-                window.focus();
-                n.close();
-              };
-            } catch (e) {
-              console.warn('⚠️ Direct Notification failed, trying SW:', e);
-              // Fallback to Service Worker (for mobile/restricted environments)
-              navigator.serviceWorker?.ready.then((reg) => {
-                reg.showNotification('📋 New Pick List', {
-                  body: 'بكلست جديدة',
-                  icon: '/favicon.ico',
-                  tag: 'picklist-sw-' + Date.now(),
-                  requireInteraction: true,
-                  vibrate: [200, 100, 200],
-                } as NotificationOptions);
-                console.log('✅ SW Notification sent');
-              });
+            } else {
+              // No SW controller yet, try direct API
+              try {
+                const n = new Notification(notifTitle, notifOptions);
+                console.log('✅ Direct Notification (no SW):', n);
+                n.onclick = () => { window.focus(); n.close(); };
+              } catch (e) {
+                console.error('❌ Direct Notification failed:', e);
+              }
             }
           } else {
             console.warn('❌ Permission status:', Notification.permission);
-            alert('إذن الإشعارات: ' + Notification.permission + '. يرجى تفعيله من إعدادات المتصفح.');
           }
         }
       )
