@@ -19,6 +19,7 @@ const Index = () => {
           <p>جميع الحقوق محفوظة © {new Date().getFullYear()} فدشي</p>
         </footer>
       </div>
+      <InstallPWA />
     </div>
   );
 };
