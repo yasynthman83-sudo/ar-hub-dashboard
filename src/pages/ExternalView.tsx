@@ -2,21 +2,38 @@ import { Home } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import logo from "@/assets/logo.png";
 
+// قائمة النطاقات المسموح بها فقط
+const ALLOWED_ORIGINS = [
+  "https://easy-fulfillment.lovable.app",
+  "https://scan-find-assign.lovable.app",
+  "https://baker-leave-buddy.lovable.app",
+];
+
+function isAllowedUrl(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== "https:") return false;
+    return ALLOWED_ORIGINS.some((origin) => urlString.startsWith(origin));
+  } catch {
+    return false;
+  }
+}
+
 export default function ExternalView() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const url = searchParams.get("url") || "";
   const title = searchParams.get("title") || "الموقع";
+  const urlAllowed = isAllowedUrl(url);
 
   const handleBack = () => {
     navigate("/");
   };
 
-  // إذا لم يوجد رابط، عرض رسالة خطأ
-  if (!url) {
+  if (!url || !urlAllowed) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <p className="text-card-foreground text-xl">لم يتم تحديد رابط</p>
+        <p className="text-card-foreground text-xl">{!url ? "لم يتم تحديد رابط" : "رابط غير مسموح به"}</p>
         <button
           onClick={handleBack}
           className="flex items-center gap-2 bg-primary px-6 py-3 rounded-lg text-primary-foreground font-medium"
