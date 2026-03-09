@@ -211,10 +211,12 @@ serve(async (req) => {
     // Handle Supabase Database Webhook payload (has "type" and "record" fields)
     if (body.type === "INSERT" && body.record) {
       console.log("📨 Received Database Webhook trigger:", JSON.stringify(body).substring(0, 200));
-      body = { action: "send", title: "📋 New Pick List", body: "بكلست جديدة" };
+      console.log("📋 Triggering push notification for new record");
+      body = { action: "send", title: "📋 New Pick List", body: "بكلست جديدة", url: "/" };
     }
 
     const actionFinal = body.action || action;
+    console.log("🎯 Action:", actionFinal);
 
     // GET VAPID PUBLIC KEY
     if (actionFinal === "vapid-key" || actionFinal === "get-vapid-key") {
