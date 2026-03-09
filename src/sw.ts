@@ -49,7 +49,7 @@ self.addEventListener('push', function (event) {
     console.log('[SW] ℹ️ No push data received, using defaults');
   }
 
-  const options: NotificationOptions = {
+  const options = {
     body: body,
     icon: icon,
     badge: badge,
@@ -63,7 +63,7 @@ self.addEventListener('push', function (event) {
       clickAction: url 
     },
     silent: false,
-  };
+  } as NotificationOptions;
 
   console.log('[SW] 🔔 Showing notification:', title);
   console.log('[SW] 📋 Options:', JSON.stringify(options));
