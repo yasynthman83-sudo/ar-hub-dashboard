@@ -14,32 +14,65 @@ precacheAndRoute(self.__WB_MANIFEST);
 
 // ===== PUSH NOTIFICATIONS =====
 self.addEventListener('push', function (event) {
-  console.log('[SW] Push received:', event);
+  console.log('[SW] 🔔 Push event received:', event);
 
-  let data: any = { title: '📋 New Pick List', body: 'بكلست جديدة' };
+  // Default fallback data
+  let title = '📋 New Pick List';
+  let body = 'بكلست جديدة';
+  let url = '/';
+  let icon = '/pwa-192x192.png';
+  let badge = '/pwa-192x192.png';
 
+  // Parse incoming data with multiple fallbacks
   if (event.data) {
     try {
-      data = event.data.json();
+      const parsed = event.data.json();
+      console.log('[SW] 📦 Parsed push data:', parsed);
+      
+      title = parsed.title || title;
+      body = parsed.body || parsed.message || body;
+      url = parsed.url || parsed.link || url;
+      icon = parsed.icon || icon;
+      badge = parsed.badge || badge;
     } catch (e) {
-      data.body = event.data.text();
+      console.log('[SW] ⚠️ Failed to parse JSON, trying text:', e);
+      try {
+        body = event.data.text() || body;
+      } catch (e2) {
+        console.log('[SW] ⚠️ Failed to parse text, using defaults:', e2);
+      }
     }
+  } else {
+    console.log('[SW] ℹ️ No push data, using defaults');
   }
 
-  const options: any = {
-    body: data.body || 'بكلست جديدة',
-    icon: '/pwa-192x192.png',
-    badge: '/pwa-192x192.png',
-    vibrate: [200, 100, 200],
+  const options: NotificationOptions = {
+    body: body,
+    icon: icon,
+    badge: badge,
+    vibrate: [200, 100, 200, 100, 200],
     tag: 'picklist-notification',
     renotify: true,
     requireInteraction: false,
     silent: false,
-    data: { url: '/', timestamp: Date.now() },
+    data: { 
+      url: url, 
+      timestamp: Date.now(),
+      clickAction: url 
+    },
   };
 
+  console.log('[SW] 🔔 Showing notification:', title, options);
+
+  // Critical: waitUntil ensures SW stays alive until notification is shown
   event.waitUntil(
-    self.registration.showNotification(data.title || '📋 New Pick List', options)
+    self.registration.showNotification(title, options)
+      .then(() => {
+        console.log('[SW] ✅ Notification displayed successfully');
+      })
+      .catch((error) => {
+        console.error('[SW] ❌ Failed to show notification:', error);
+      })
   );
 });
 
