@@ -263,9 +263,13 @@ serve(async (req) => {
     if (actionFinal === "send") {
       const title = body.title || "📋 New Pick List";
       const message = body.body || "بكلست جديدة";
+      const url = body.url || "/";
+
+      console.log("📤 Preparing to send push:", { title, message, url });
 
       const { data: vapidConfig } = await supabase.from("vapid_config").select("*").single();
       if (!vapidConfig) {
+        console.error("❌ VAPID keys not configured");
         return new Response(JSON.stringify({ error: "VAPID keys not configured" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -273,13 +277,17 @@ serve(async (req) => {
       }
 
       const { data: subscriptions } = await supabase.from("push_subscriptions").select("*");
+      console.log(`📊 Found ${subscriptions?.length || 0} subscriptions`);
+      
       if (!subscriptions?.length) {
         return new Response(JSON.stringify({ sent: 0, message: "No subscribers" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const payload = JSON.stringify({ title, body: message });
+      const payload = JSON.stringify({ title, body: message, url });
+      console.log("📦 Payload:", payload);
+      
       const privateKeyJwk = JSON.parse(vapidConfig.private_key);
       let sent = 0;
       let failed = 0;
