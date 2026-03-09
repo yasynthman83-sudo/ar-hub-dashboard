@@ -54,7 +54,6 @@ self.addEventListener('push', function (event) {
     icon: icon,
     badge: badge,
     tag: 'picklist-notification',
-    renotify: true,
     requireInteraction: false,
     vibrate: [200, 100, 200, 100, 200],
     data: { 
