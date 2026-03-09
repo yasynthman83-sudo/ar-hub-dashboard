@@ -107,16 +107,39 @@ export default function Diagnostics() {
 
   const sendTestNotification = async () => {
     try {
-      toast.loading("🔄 جاري إرسال إشعار تجريبي...");
+      toast.loading("🔄 جاري إرسال إشعار تجريبي عبر Web Push...");
       
-      // Insert a test record to trigger the webhook (using external supabase client)
-      const { error } = await externalSupabase
-        .from("notification1")
-        .insert({ id: `test-${Date.now()}`, JOP: "اختبار إشعار" });
-
-      if (error) throw error;
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       
-      toast.success("✅ تم إرسال الإشعار التجريبي بنجاح!");
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/web-push`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${anonKey}`,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({
+            action: "send",
+            title: "📋 اختبار إشعار",
+            body: "هذا إشعار تجريبي - Web Push يعمل! 🎉",
+            url: "/",
+          }),
+        }
+      );
+      
+      const result = await response.json();
+      console.log("📊 Push result:", result);
+      
+      if (result.sent > 0) {
+        toast.success(`✅ تم إرسال ${result.sent} إشعار بنجاح!`);
+      } else if (result.sent === 0 && result.total === 0) {
+        toast.error("❌ لا يوجد أجهزة مشتركة. تأكد من تفعيل الإشعارات أولاً.");
+      } else {
+        toast.error(`❌ فشل الإرسال: ${result.errors?.join(", ") || "خطأ غير معروف"}`);
+      }
     } catch (error: any) {
       toast.error("❌ فشل إرسال الإشعار: " + error.message);
     }
