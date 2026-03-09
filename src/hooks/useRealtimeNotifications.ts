@@ -123,47 +123,16 @@ async function subscribeToPush() {
 
       console.log("✅ Push subscription stored successfully");
 
-      // Try to register periodic sync to keep SW alive (Android/Chrome)
+      // Try to register periodic sync to keep SW alive
       if ('periodicSync' in registration) {
         try {
           await (registration as any).periodicSync.register('keep-alive', {
-            minInterval: 6 * 60 * 60 * 1000, // 6 hours (minimum allowed)
+            minInterval: 12 * 60 * 60 * 1000, // 12 hours
           });
-          console.log("✅ Periodic sync registered (6 hours interval)");
+          console.log("✅ Periodic sync registered");
         } catch (e) {
-          console.log("ℹ️ Periodic sync not available:", e);
+          console.log("ℹ️ Periodic sync not available");
         }
-      }
-
-      // Try to register standard background sync as fallback
-      if ('sync' in registration) {
-        try {
-          await (registration as any).sync.register('keep-alive-fallback');
-          console.log("✅ Background sync registered");
-        } catch (e) {
-          console.log("ℹ️ Background sync not available:", e);
-        }
-      }
-
-      // Add a message channel to ping SW periodically
-      if (navigator.serviceWorker.controller) {
-        const pingInterval = setInterval(() => {
-          const messageChannel = new MessageChannel();
-          messageChannel.port1.onmessage = (event) => {
-            if (event.data && event.data.type === 'PONG') {
-              console.log('💓 SW responded to ping at:', new Date(event.data.timestamp).toLocaleTimeString());
-            }
-          };
-          navigator.serviceWorker.controller?.postMessage(
-            { type: 'PING' },
-            [messageChannel.port2]
-          );
-        }, 5 * 60 * 1000); // Ping every 5 minutes
-
-        // Clean up on unmount
-        window.addEventListener('beforeunload', () => {
-          clearInterval(pingInterval);
-        });
       }
 
       return true;

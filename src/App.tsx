@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import ExternalView from "./pages/ExternalView";
-import Diagnostics from "./pages/Diagnostics";
 import NotFound from "./pages/NotFound";
 import { useRealtimeNotifications } from "./hooks/useRealtimeNotifications";
 
@@ -23,7 +22,6 @@ const App = () => {
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/view" element={<ExternalView />} />
-          <Route path="/diagnostics" element={<Diagnostics />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
