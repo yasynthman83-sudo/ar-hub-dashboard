@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Download, X } from "lucide-react";
+import { useState, useEffect, forwardRef } from "react";
+import { Download, X, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -7,7 +7,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-export const InstallPWA = () => {
+export const InstallPWA = forwardRef<HTMLDivElement>((_, ref) => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
