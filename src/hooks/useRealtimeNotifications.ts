@@ -62,75 +62,90 @@ async function subscribeToPush() {
         }
       }
 
-    // Get VAPID key
-    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      // No valid subscription, create new one
+      console.log("🔄 Creating new subscription...");
+      
+      // Get VAPID key
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-    const vapidRes = await fetch(
-      `https://${projectId}.supabase.co/functions/v1/web-push?action=vapid-key`,
-      { headers: { Authorization: `Bearer ${anonKey}`, apikey: anonKey } }
-    );
-    
-    if (!vapidRes.ok) {
-      console.error("❌ VAPID fetch failed:", vapidRes.status);
-      return;
-    }
-    
-    const { publicKey } = await vapidRes.json();
-    if (!publicKey) {
-      console.error("❌ No VAPID key received");
-      return;
-    }
+      const vapidRes = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/web-push?action=vapid-key`,
+        { headers: { Authorization: `Bearer ${anonKey}`, apikey: anonKey } }
+      );
+      
+      if (!vapidRes.ok) {
+        throw new Error(`VAPID fetch failed: ${vapidRes.status}`);
+      }
+      
+      const { publicKey } = await vapidRes.json();
+      if (!publicKey) {
+        throw new Error("No VAPID key received");
+      }
 
-    console.log("🔑 Got VAPID key, subscribing...");
+      console.log("🔑 Got VAPID key, subscribing...");
 
-    // Convert base64url to Uint8Array
-    const padding = "=".repeat((4 - (publicKey.length % 4)) % 4);
-    const base64 = (publicKey + padding).replace(/-/g, "+").replace(/_/g, "/");
-    const rawData = atob(base64);
-    const applicationServerKey = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; i++) {
-      applicationServerKey[i] = rawData.charCodeAt(i);
-    }
+      // Convert base64url to Uint8Array
+      const padding = "=".repeat((4 - (publicKey.length % 4)) % 4);
+      const base64 = (publicKey + padding).replace(/-/g, "+").replace(/_/g, "/");
+      const rawData = atob(base64);
+      const applicationServerKey = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; i++) {
+        applicationServerKey[i] = rawData.charCodeAt(i);
+      }
 
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey,
-    });
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      });
 
-    console.log("✅ New push subscription created");
+      console.log("✅ New push subscription created");
 
-    // Store in database
-    const subJson = subscription.toJSON();
-    const { error } = await cloudSupabase.from("push_subscriptions").upsert(
-      {
-        endpoint: subJson.endpoint!,
-        p256dh: subJson.keys!.p256dh!,
-        auth: subJson.keys!.auth!,
-      },
-      { onConflict: "endpoint" }
-    );
+      // Store in database
+      const subJson = subscription.toJSON();
+      const { error } = await cloudSupabase.from("push_subscriptions").upsert(
+        {
+          endpoint: subJson.endpoint!,
+          p256dh: subJson.keys!.p256dh!,
+          auth: subJson.keys!.auth!,
+        },
+        { onConflict: "endpoint" }
+      );
 
-    if (error) {
-      console.error("❌ Failed to store subscription:", error.message);
-    } else {
+      if (error) {
+        throw new Error(`Failed to store subscription: ${error.message}`);
+      }
+
       console.log("✅ Push subscription stored successfully");
-    }
 
-    // Try to register periodic sync to keep SW alive
-    if ('periodicSync' in registration) {
-      try {
-        await (registration as any).periodicSync.register('keep-alive', {
-          minInterval: 12 * 60 * 60 * 1000, // 12 hours
-        });
-        console.log("✅ Periodic sync registered");
-      } catch (e) {
-        console.log("ℹ️ Periodic sync not available");
+      // Try to register periodic sync to keep SW alive
+      if ('periodicSync' in registration) {
+        try {
+          await (registration as any).periodicSync.register('keep-alive', {
+            minInterval: 12 * 60 * 60 * 1000, // 12 hours
+          });
+          console.log("✅ Periodic sync registered");
+        } catch (e) {
+          console.log("ℹ️ Periodic sync not available");
+        }
+      }
+
+      return true;
+    } catch (err: any) {
+      console.error(`❌ Push subscription attempt ${retryCount + 1} failed:`, err.message);
+      retryCount++;
+      
+      if (retryCount < MAX_RETRIES) {
+        // Wait before retry with exponential backoff
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+        console.log(`⏱️ Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
-  } catch (err) {
-    console.error("❌ Push subscription failed:", err);
   }
+
+  console.error("❌ All push subscription attempts failed");
+  return false;
 }
 
 export function useRealtimeNotifications() {
