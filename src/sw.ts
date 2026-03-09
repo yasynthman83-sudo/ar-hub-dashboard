@@ -119,9 +119,44 @@ self.addEventListener('notificationclick', function (event) {
   );
 });
 
+// ===== BACKGROUND SYNC & KEEP-ALIVE =====
+
 // Keep SW alive - respond to periodic sync if available
 self.addEventListener('periodicsync', function (event: any) {
+  console.log('[SW] 🔄 Periodic sync triggered:', event.tag);
   if (event.tag === 'keep-alive') {
-    event.waitUntil(Promise.resolve());
+    event.waitUntil(
+      // Send a heartbeat to verify SW is alive
+      fetch('/').then(() => {
+        console.log('[SW] 💓 Heartbeat sent - SW is alive');
+      }).catch(() => {
+        console.log('[SW] ⚠️ Heartbeat failed but SW is still active');
+      })
+    );
+  }
+});
+
+// Wake up on sync events (for offline support)
+self.addEventListener('sync', function (event: any) {
+  console.log('[SW] 🔄 Background sync triggered:', event.tag);
+  event.waitUntil(Promise.resolve());
+});
+
+// Activate immediately and claim all clients
+self.addEventListener('activate', function(event) {
+  console.log('[SW] ✅ Service Worker activated at:', new Date().toISOString());
+  event.waitUntil(
+    self.clients.claim().then(() => {
+      console.log('[SW] ✅ Claimed all clients');
+    })
+  );
+});
+
+// Listen to messages from clients (for debugging)
+self.addEventListener('message', function(event) {
+  console.log('[SW] 📨 Message received:', event.data);
+  
+  if (event.data && event.data.type === 'PING') {
+    event.ports[0].postMessage({ type: 'PONG', timestamp: Date.now() });
   }
 });
