@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import { supabase as externalSupabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { RefreshCw, Bell, Smartphone, Wifi, WifiOff } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
