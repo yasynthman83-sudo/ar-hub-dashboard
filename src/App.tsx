@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import ExternalView from "./pages/ExternalView";
 import NotFound from "./pages/NotFound";
+import Diagnostics from "./pages/Diagnostics";
 import { useRealtimeNotifications } from "./hooks/useRealtimeNotifications";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => {
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/view" element={<ExternalView />} />
+          <Route path="/diagnostics" element={<Diagnostics />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
