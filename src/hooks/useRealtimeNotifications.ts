@@ -150,6 +150,7 @@ async function subscribeToPush() {
 
 export function useRealtimeNotifications() {
   const hasSubscribed = useRef(false);
+  const revalidationInterval = useRef<number>();
 
   useEffect(() => {
     // Subscribe to push notifications
@@ -158,19 +159,29 @@ export function useRealtimeNotifications() {
 
       const setupPush = async () => {
         let permission = Notification.permission;
-        console.log("🔔 Notification permission:", permission);
+        console.log("🔔 Initial notification permission:", permission);
 
         if (permission === "default") {
+          console.log("🔔 Requesting notification permission...");
           permission = await Notification.requestPermission();
           console.log("🔔 Permission result:", permission);
         }
 
         if (permission === "granted") {
+          console.log("✅ Permission granted, setting up push...");
           // Small delay for SW to stabilize
           await new Promise((r) => setTimeout(r, 1000));
-          await subscribeToPush();
+          const success = await subscribeToPush();
+          
+          if (success) {
+            // Re-validate subscription every 6 hours
+            revalidationInterval.current = window.setInterval(async () => {
+              console.log("🔄 Periodic subscription revalidation...");
+              await subscribeToPush();
+            }, 6 * 60 * 60 * 1000);
+          }
         } else {
-          console.warn("⚠️ Notification permission denied");
+          console.warn("⚠️ Notification permission denied or dismissed");
         }
       };
 
