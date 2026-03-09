@@ -109,8 +109,8 @@ export default function Diagnostics() {
     try {
       toast.loading("🔄 جاري إرسال إشعار تجريبي...");
       
-      // Insert a test record to trigger the webhook
-      const { error } = await supabase
+      // Insert a test record to trigger the webhook (using external supabase client)
+      const { error } = await externalSupabase
         .from("notification1")
         .insert({ id: `test-${Date.now()}`, JOP: "اختبار إشعار" });
 
