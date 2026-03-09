@@ -90,12 +90,18 @@ export const InstallPWA = () => {
             <p>1. اضغط على زر المشاركة <span className="inline-block">⬆️</span> في الأسفل</p>
             <p>2. اختر <strong>"إضافة إلى الشاشة الرئيسية"</strong></p>
             <p>3. اضغط <strong>"إضافة"</strong></p>
+            <p className="mt-2 font-semibold text-warning">⚠️ الإشعارات تعمل فقط بعد التثبيت!</p>
           </div>
         ) : (
-          <Button onClick={handleInstall} className="w-full" size="sm">
-            <Download className="h-4 w-4 ml-2" />
-            تثبيت الآن
-          </Button>
+          <div className="space-y-2">
+            <Button onClick={handleInstall} className="w-full" size="sm">
+              <Download className="h-4 w-4 ml-2" />
+              تثبيت الآن
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">
+              💡 التثبيت مطلوب لتلقي الإشعارات عند إغلاق المتصفح
+            </p>
+          </div>
         )}
       </div>
     </div>

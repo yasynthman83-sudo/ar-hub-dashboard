@@ -14,7 +14,8 @@ precacheAndRoute(self.__WB_MANIFEST);
 
 // ===== PUSH NOTIFICATIONS =====
 self.addEventListener('push', function (event) {
-  console.log('[SW] 🔔 Push event received:', event);
+  console.log('[SW] 🔔 Push event received at:', new Date().toISOString());
+  console.log('[SW] 📊 Push event data available:', !!event.data);
 
   // Default fallback data
   let title = '📋 New Pick List';
@@ -27,7 +28,7 @@ self.addEventListener('push', function (event) {
   if (event.data) {
     try {
       const parsed = event.data.json();
-      console.log('[SW] 📦 Parsed push data:', parsed);
+      console.log('[SW] 📦 Parsed push data:', JSON.stringify(parsed));
       
       title = parsed.title || title;
       body = parsed.body || parsed.message || body;
@@ -37,23 +38,25 @@ self.addEventListener('push', function (event) {
     } catch (e) {
       console.log('[SW] ⚠️ Failed to parse JSON, trying text:', e);
       try {
-        body = event.data.text() || body;
+        const textData = event.data.text();
+        console.log('[SW] 📝 Text data:', textData);
+        body = textData || body;
       } catch (e2) {
         console.log('[SW] ⚠️ Failed to parse text, using defaults:', e2);
       }
     }
   } else {
-    console.log('[SW] ℹ️ No push data, using defaults');
+    console.log('[SW] ℹ️ No push data received, using defaults');
   }
 
-  const options: any = {
+  const options: NotificationOptions = {
     body: body,
     icon: icon,
     badge: badge,
     tag: 'picklist-notification',
     renotify: true,
     requireInteraction: false,
-    silent: false,
+    vibrate: [200, 100, 200, 100, 200],
     data: { 
       url: url, 
       timestamp: Date.now(),
@@ -61,21 +64,19 @@ self.addEventListener('push', function (event) {
     },
   };
 
-  console.log('[SW] 🔔 Showing notification:', title, options);
+  console.log('[SW] 🔔 Showing notification:', title);
+  console.log('[SW] 📋 Options:', JSON.stringify(options));
 
-  // Critical: waitUntil ensures SW stays alive until notification is shown
+  // CRITICAL: waitUntil ensures SW stays alive until notification is shown
+  // This is what allows the notification to appear even when browser is closed
   event.waitUntil(
     self.registration.showNotification(title, options)
       .then(() => {
-        console.log('[SW] ✅ Notification displayed successfully');
-        
-        // Vibrate device if supported
-        if ('vibrate' in navigator) {
-          navigator.vibrate([200, 100, 200, 100, 200]);
-        }
+        console.log('[SW] ✅ Notification displayed successfully at', new Date().toISOString());
       })
       .catch((error) => {
         console.error('[SW] ❌ Failed to show notification:', error);
+        console.error('[SW] ❌ Error details:', error.message, error.stack);
       })
   );
 });
