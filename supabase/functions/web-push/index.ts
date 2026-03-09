@@ -293,15 +293,67 @@ serve(async (req) => {
       let failed = 0;
       const errors: string[] = [];
 
+      // Get FCM server key from secrets (for native push)
+      const fcmServerKey = Deno.env.get("FCM_SERVER_KEY");
+
       for (const sub of subscriptions) {
         try {
+          // Check if this is a native FCM subscription
+          if (sub.endpoint.startsWith("fcm:")) {
+            if (!fcmServerKey) {
+              console.warn("⚠️ FCM_SERVER_KEY not configured, skipping native push");
+              failed++;
+              errors.push("FCM_SERVER_KEY not configured");
+              continue;
+            }
+
+            const fcmToken = sub.endpoint.replace("fcm:", "");
+            console.log(`🚀 Sending FCM to native: ${fcmToken.substring(0, 20)}...`);
+
+            const fcmResponse = await fetch("https://fcm.googleapis.com/fcm/send", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `key=${fcmServerKey}`,
+              },
+              body: JSON.stringify({
+                to: fcmToken,
+                priority: "high",
+                notification: {
+                  title,
+                  body: message,
+                  click_action: url,
+                  sound: "default",
+                },
+                data: { title, body: message, url },
+              }),
+            });
+
+            const fcmResult = await fcmResponse.json();
+            console.log("📬 FCM response:", JSON.stringify(fcmResult));
+
+            if (fcmResult.success === 1) {
+              console.log("✅ FCM sent successfully");
+              sent++;
+            } else {
+              console.error("❌ FCM failed:", JSON.stringify(fcmResult.results));
+              failed++;
+              errors.push(`FCM error: ${JSON.stringify(fcmResult.results)}`);
+              // Remove invalid tokens
+              if (fcmResult.results?.[0]?.error === "NotRegistered" || fcmResult.results?.[0]?.error === "InvalidRegistration") {
+                await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+              }
+            }
+            continue;
+          }
+
+          // Web Push (existing logic)
           console.log(`🚀 Sending to: ${sub.endpoint.substring(0, 80)}...`);
           
           const endpointUrl = new URL(sub.endpoint);
           const audience = `${endpointUrl.protocol}//${endpointUrl.host}`;
           const jwt = await createJwt(audience, privateKeyJwk);
 
-          // Encrypt using aes128gcm
           const encryptedBody = await encryptPayload(sub.p256dh, sub.auth, payload);
 
           const response = await fetch(sub.endpoint, {
@@ -310,8 +362,8 @@ serve(async (req) => {
               "Content-Type": "application/octet-stream",
               "Content-Encoding": "aes128gcm",
               Authorization: `vapid t=${jwt}, k=${vapidConfig.public_key}`,
-              TTL: "86400", // 24 hours
-              Urgency: "high", // High priority for immediate delivery
+              TTL: "86400",
+              Urgency: "high",
             },
             body: encryptedBody,
           });
