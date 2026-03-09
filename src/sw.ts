@@ -50,7 +50,6 @@ self.addEventListener('push', function (event) {
     body: body,
     icon: icon,
     badge: badge,
-    vibrate: [200, 100, 200, 100, 200],
     tag: 'picklist-notification',
     renotify: true,
     requireInteraction: false,
@@ -69,6 +68,11 @@ self.addEventListener('push', function (event) {
     self.registration.showNotification(title, options)
       .then(() => {
         console.log('[SW] ✅ Notification displayed successfully');
+        
+        // Vibrate device if supported
+        if ('vibrate' in navigator) {
+          navigator.vibrate([200, 100, 200, 100, 200]);
+        }
       })
       .catch((error) => {
         console.error('[SW] ❌ Failed to show notification:', error);
