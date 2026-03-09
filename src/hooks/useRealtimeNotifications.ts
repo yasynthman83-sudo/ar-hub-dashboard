@@ -4,49 +4,63 @@ import { supabase as cloudSupabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 async function subscribeToPush() {
-  try {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      console.warn("❌ Push API not supported");
-      return;
-    }
+  const MAX_RETRIES = 3;
+  let retryCount = 0;
 
-    // Wait for SW ready
-    const registration = await Promise.race([
-      navigator.serviceWorker.ready,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("SW ready timeout")), 15000)
-      ),
-    ]);
-
-    console.log("✅ SW ready, scope:", registration.scope);
-
-    // Check existing subscription
-    let subscription = await registration.pushManager.getSubscription();
-
-    if (subscription) {
-      console.log("✅ Existing subscription found, syncing...");
-      const subJson = subscription.toJSON();
-      
-      // Always re-sync to database
-      const { error } = await cloudSupabase.from("push_subscriptions").upsert(
-        {
-          endpoint: subJson.endpoint!,
-          p256dh: subJson.keys!.p256dh!,
-          auth: subJson.keys!.auth!,
-        },
-        { onConflict: "endpoint" }
-      );
-      
-      if (error) {
-        console.error("❌ Sync failed:", error.message);
-        // If sync fails, try to unsubscribe and resubscribe
-        await subscription.unsubscribe();
-        subscription = null;
-      } else {
-        console.log("✅ Subscription synced successfully");
-        return;
+  while (retryCount < MAX_RETRIES) {
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        console.warn("❌ Push API not supported");
+        return false;
       }
-    }
+
+      console.log(`🔄 Subscribe attempt ${retryCount + 1}/${MAX_RETRIES}`);
+
+      // Wait for SW ready with timeout
+      const registration = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("SW ready timeout")), 15000)
+        ),
+      ]);
+
+      console.log("✅ SW ready, scope:", registration.scope);
+
+      // Check existing subscription
+      let subscription = await registration.pushManager.getSubscription();
+
+      if (subscription) {
+        console.log("✅ Existing subscription found, validating...");
+        const subJson = subscription.toJSON();
+        
+        // Validate subscription has required keys
+        if (!subJson.endpoint || !subJson.keys?.p256dh || !subJson.keys?.auth) {
+          console.warn("⚠️ Invalid subscription, unsubscribing...");
+          await subscription.unsubscribe();
+          subscription = null;
+        } else {
+          // Re-sync to database to ensure it's stored
+          console.log("🔄 Re-syncing subscription to database...");
+          const { error } = await cloudSupabase.from("push_subscriptions").upsert(
+            {
+              endpoint: subJson.endpoint,
+              p256dh: subJson.keys.p256dh,
+              auth: subJson.keys.auth,
+            },
+            { onConflict: "endpoint" }
+          );
+          
+          if (error) {
+            console.error("❌ Sync failed:", error.message);
+            // If sync fails, try to unsubscribe and resubscribe
+            await subscription.unsubscribe();
+            subscription = null;
+          } else {
+            console.log("✅ Subscription validated and synced successfully");
+            return true;
+          }
+        }
+      }
 
     // Get VAPID key
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
