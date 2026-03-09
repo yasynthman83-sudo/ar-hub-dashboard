@@ -211,10 +211,12 @@ serve(async (req) => {
     // Handle Supabase Database Webhook payload (has "type" and "record" fields)
     if (body.type === "INSERT" && body.record) {
       console.log("📨 Received Database Webhook trigger:", JSON.stringify(body).substring(0, 200));
-      body = { action: "send", title: "📋 New Pick List", body: "بكلست جديدة" };
+      console.log("📋 Triggering push notification for new record");
+      body = { action: "send", title: "📋 New Pick List", body: "بكلست جديدة", url: "/" };
     }
 
     const actionFinal = body.action || action;
+    console.log("🎯 Action:", actionFinal);
 
     // GET VAPID PUBLIC KEY
     if (actionFinal === "vapid-key" || actionFinal === "get-vapid-key") {
@@ -261,9 +263,13 @@ serve(async (req) => {
     if (actionFinal === "send") {
       const title = body.title || "📋 New Pick List";
       const message = body.body || "بكلست جديدة";
+      const url = body.url || "/";
+
+      console.log("📤 Preparing to send push:", { title, message, url });
 
       const { data: vapidConfig } = await supabase.from("vapid_config").select("*").single();
       if (!vapidConfig) {
+        console.error("❌ VAPID keys not configured");
         return new Response(JSON.stringify({ error: "VAPID keys not configured" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -271,13 +277,17 @@ serve(async (req) => {
       }
 
       const { data: subscriptions } = await supabase.from("push_subscriptions").select("*");
+      console.log(`📊 Found ${subscriptions?.length || 0} subscriptions`);
+      
       if (!subscriptions?.length) {
         return new Response(JSON.stringify({ sent: 0, message: "No subscribers" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const payload = JSON.stringify({ title, body: message });
+      const payload = JSON.stringify({ title, body: message, url });
+      console.log("📦 Payload:", payload);
+      
       const privateKeyJwk = JSON.parse(vapidConfig.private_key);
       let sent = 0;
       let failed = 0;
@@ -285,6 +295,8 @@ serve(async (req) => {
 
       for (const sub of subscriptions) {
         try {
+          console.log(`🚀 Sending to: ${sub.endpoint.substring(0, 80)}...`);
+          
           const endpointUrl = new URL(sub.endpoint);
           const audience = `${endpointUrl.protocol}//${endpointUrl.host}`;
           const jwt = await createJwt(audience, privateKeyJwk);
@@ -298,31 +310,36 @@ serve(async (req) => {
               "Content-Type": "application/octet-stream",
               "Content-Encoding": "aes128gcm",
               Authorization: `vapid t=${jwt}, k=${vapidConfig.public_key}`,
-              TTL: "86400",
-              Urgency: "high",
+              TTL: "86400", // 24 hours
+              Urgency: "high", // High priority for immediate delivery
             },
             body: encryptedBody,
           });
 
           const responseText = await response.text();
-          console.log(`Push to ${sub.endpoint.substring(0, 60)}: ${response.status} ${responseText}`);
+          console.log(`📬 Response from ${sub.endpoint.substring(0, 60)}: ${response.status} ${responseText || '(empty)'}`);
 
           if (response.status === 201 || response.status === 200) {
+            console.log(`✅ Successfully sent to ${sub.endpoint.substring(0, 60)}`);
             sent++;
           } else if (response.status === 404 || response.status === 410) {
+            console.warn(`⚠️ Subscription expired (${response.status}), removing: ${sub.endpoint.substring(0, 60)}`);
             await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
             failed++;
-            errors.push(`Expired: ${sub.endpoint.substring(0, 60)}`);
+            errors.push(`Expired (${response.status}): ${sub.endpoint.substring(0, 60)}`);
           } else {
+            console.error(`❌ Failed to send (${response.status}): ${responseText}`);
             failed++;
             errors.push(`${response.status}: ${responseText.substring(0, 200)}`);
           }
-        } catch (err) {
-          console.error(`Push error for ${sub.endpoint.substring(0, 60)}:`, err.message);
+        } catch (err: any) {
+          console.error(`❌ Push error for ${sub.endpoint.substring(0, 60)}:`, err.message);
           failed++;
           errors.push(`Error: ${err.message}`);
         }
       }
+
+      console.log(`📊 Push delivery summary: ${sent} sent, ${failed} failed, ${subscriptions.length} total`);
 
       return new Response(JSON.stringify({ sent, failed, total: subscriptions.length, errors }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
