@@ -49,20 +49,21 @@ self.addEventListener('push', function (event) {
     console.log('[SW] ℹ️ No push data received, using defaults');
   }
 
-  const options = {
+  const options: NotificationOptions = {
     body: body,
     icon: icon,
     badge: badge,
-    tag: 'picklist-notification',
+    tag: 'picklist-' + Date.now(),
     renotify: true,
-    requireInteraction: false,
-    vibrate: [200, 100, 200, 100, 200],
+    requireInteraction: true,
+    vibrate: [300, 100, 300, 100, 300],
     data: { 
       url: url, 
       timestamp: Date.now(),
       clickAction: url 
     },
-  } as any;
+    silent: false,
+  };
 
   console.log('[SW] 🔔 Showing notification:', title);
   console.log('[SW] 📋 Options:', JSON.stringify(options));

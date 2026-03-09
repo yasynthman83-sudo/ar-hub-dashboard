@@ -3,6 +3,14 @@ import { supabase } from "@/lib/supabaseClient";
 import { supabase as cloudSupabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+function detectDeviceType(): string {
+  const ua = navigator.userAgent;
+  if (/Android/i.test(ua)) return "android";
+  if (/iPad|iPhone|iPod/i.test(ua)) return "ios";
+  if (/Mobile|webOS|BlackBerry|Opera Mini|IEMobile/i.test(ua)) return "mobile";
+  return "desktop";
+}
+
 async function subscribeToPush() {
   const MAX_RETRIES = 3;
   let retryCount = 0;
@@ -16,7 +24,6 @@ async function subscribeToPush() {
 
       console.log(`🔄 Subscribe attempt ${retryCount + 1}/${MAX_RETRIES}`);
 
-      // Wait for SW ready with timeout
       const registration = await Promise.race([
         navigator.serviceWorker.ready,
         new Promise<never>((_, reject) =>
@@ -26,51 +33,48 @@ async function subscribeToPush() {
 
       console.log("✅ SW ready, scope:", registration.scope);
 
-      // Verify SW is active
       if (!registration.active) {
         throw new Error("SW registered but not active yet");
       }
 
-      // Check existing subscription
       let subscription = await registration.pushManager.getSubscription();
+      const deviceType = detectDeviceType();
+      const userAgent = navigator.userAgent;
 
       if (subscription) {
         console.log("✅ Existing subscription found, validating...");
         const subJson = subscription.toJSON();
-        
-        // Validate subscription has required keys
+
         if (!subJson.endpoint || !subJson.keys?.p256dh || !subJson.keys?.auth) {
           console.warn("⚠️ Invalid subscription, unsubscribing...");
           await subscription.unsubscribe();
           subscription = null;
         } else {
-          // Re-sync to database to ensure it's stored
           console.log("🔄 Re-syncing subscription to database...");
           const { error } = await cloudSupabase.from("push_subscriptions").upsert(
             {
               endpoint: subJson.endpoint,
               p256dh: subJson.keys.p256dh,
               auth: subJson.keys.auth,
-            },
+              device_type: deviceType,
+              user_agent: userAgent,
+            } as any,
             { onConflict: "endpoint" }
           );
-          
+
           if (error) {
             console.error("❌ Sync failed:", error.message);
-            // If sync fails, try to unsubscribe and resubscribe
             await subscription.unsubscribe();
             subscription = null;
           } else {
-            console.log("✅ Subscription validated and synced successfully");
+            console.log("✅ Subscription validated and synced (device:", deviceType, ")");
             return true;
           }
         }
       }
 
-      // No valid subscription, create new one
       console.log("🔄 Creating new subscription...");
-      
-      // Get VAPID key
+
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -78,11 +82,11 @@ async function subscribeToPush() {
         `https://${projectId}.supabase.co/functions/v1/web-push?action=vapid-key`,
         { headers: { Authorization: `Bearer ${anonKey}`, apikey: anonKey } }
       );
-      
+
       if (!vapidRes.ok) {
         throw new Error(`VAPID fetch failed: ${vapidRes.status}`);
       }
-      
+
       const { publicKey } = await vapidRes.json();
       if (!publicKey) {
         throw new Error("No VAPID key received");
@@ -90,7 +94,6 @@ async function subscribeToPush() {
 
       console.log("🔑 Got VAPID key, subscribing...");
 
-      // Convert base64url to Uint8Array
       const padding = "=".repeat((4 - (publicKey.length % 4)) % 4);
       const base64 = (publicKey + padding).replace(/-/g, "+").replace(/_/g, "/");
       const rawData = atob(base64);
@@ -106,14 +109,15 @@ async function subscribeToPush() {
 
       console.log("✅ New push subscription created");
 
-      // Store in database
       const subJson = subscription.toJSON();
       const { error } = await cloudSupabase.from("push_subscriptions").upsert(
         {
           endpoint: subJson.endpoint!,
           p256dh: subJson.keys!.p256dh!,
           auth: subJson.keys!.auth!,
-        },
+          device_type: deviceType,
+          user_agent: userAgent,
+        } as any,
         { onConflict: "endpoint" }
       );
 
@@ -121,17 +125,15 @@ async function subscribeToPush() {
         throw new Error(`Failed to store subscription: ${error.message}`);
       }
 
-      console.log("✅ Push subscription stored successfully");
+      console.log("✅ Push subscription stored (device:", deviceType, ")");
 
-      // Try to register periodic sync to keep SW alive
       if ('periodicSync' in registration) {
         try {
           await (registration as any).periodicSync.register('keep-alive', {
-            minInterval: 12 * 60 * 60 * 1000, // 12 hours
+            minInterval: 12 * 60 * 60 * 1000,
           });
-          console.log("✅ Periodic sync registered");
-        } catch (e) {
-          console.log("ℹ️ Periodic sync not available");
+        } catch (_e) {
+          // not available
         }
       }
 
@@ -139,11 +141,9 @@ async function subscribeToPush() {
     } catch (err: any) {
       console.error(`❌ Push subscription attempt ${retryCount + 1} failed:`, err.message);
       retryCount++;
-      
+
       if (retryCount < MAX_RETRIES) {
-        // Wait before retry with exponential backoff
         const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-        console.log(`⏱️ Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -158,7 +158,6 @@ export function useRealtimeNotifications() {
   const revalidationInterval = useRef<number>();
 
   useEffect(() => {
-    // Subscribe to push notifications
     if ("Notification" in window && !hasSubscribed.current) {
       hasSubscribed.current = true;
 
@@ -167,33 +166,26 @@ export function useRealtimeNotifications() {
         console.log("🔔 Initial notification permission:", permission);
 
         if (permission === "default") {
-          console.log("🔔 Requesting notification permission...");
           permission = await Notification.requestPermission();
-          console.log("🔔 Permission result:", permission);
         }
 
         if (permission === "granted") {
-          console.log("✅ Permission granted, setting up push...");
-          // Small delay for SW to stabilize
           await new Promise((r) => setTimeout(r, 1000));
           const success = await subscribeToPush();
-          
+
           if (success) {
-            // Re-validate subscription every 6 hours
             revalidationInterval.current = window.setInterval(async () => {
-              console.log("🔄 Periodic subscription revalidation...");
               await subscribeToPush();
             }, 6 * 60 * 60 * 1000);
           }
         } else {
-          console.warn("⚠️ Notification permission denied or dismissed");
+          console.warn("⚠️ Notification permission denied");
         }
       };
 
       setupPush();
     }
 
-    // Test external Supabase connection
     supabase
       .from("notification1")
       .select("*", { count: "exact", head: true })
@@ -205,7 +197,6 @@ export function useRealtimeNotifications() {
         }
       });
 
-    // Subscribe to realtime inserts for in-app toast
     console.log("🔔 Subscribing to notification1...");
     const channel = supabase
       .channel("notification1-inserts")

@@ -264,8 +264,9 @@ serve(async (req) => {
       const title = body.title || "📋 New Pick List";
       const message = body.body || "بكلست جديدة";
       const url = body.url || "/";
+      const targetDevices = body.target || "all"; // "all", "mobile", "desktop"
 
-      console.log("📤 Preparing to send push:", { title, message, url });
+      console.log("📤 Preparing to send push:", { title, message, url, targetDevices });
 
       const { data: vapidConfig } = await supabase.from("vapid_config").select("*").single();
       if (!vapidConfig) {
@@ -276,8 +277,17 @@ serve(async (req) => {
         });
       }
 
-      const { data: subscriptions } = await supabase.from("push_subscriptions").select("*");
-      console.log(`📊 Found ${subscriptions?.length || 0} subscriptions`);
+      let query = supabase.from("push_subscriptions").select("*");
+      
+      // Filter by device type
+      if (targetDevices === "mobile") {
+        query = query.in("device_type", ["android", "ios", "mobile"]);
+      } else if (targetDevices === "desktop") {
+        query = query.eq("device_type", "desktop");
+      }
+
+      const { data: subscriptions } = await query;
+      console.log(`📊 Found ${subscriptions?.length || 0} subscriptions (target: ${targetDevices})`);
       
       if (!subscriptions?.length) {
         return new Response(JSON.stringify({ sent: 0, message: "No subscribers" }), {
@@ -295,13 +305,12 @@ serve(async (req) => {
 
       for (const sub of subscriptions) {
         try {
-          console.log(`🚀 Sending to: ${sub.endpoint.substring(0, 80)}...`);
+          console.log(`🚀 Sending to [${sub.device_type || 'unknown'}]: ${sub.endpoint.substring(0, 80)}...`);
           
           const endpointUrl = new URL(sub.endpoint);
           const audience = `${endpointUrl.protocol}//${endpointUrl.host}`;
           const jwt = await createJwt(audience, privateKeyJwk);
 
-          // Encrypt using aes128gcm
           const encryptedBody = await encryptPayload(sub.p256dh, sub.auth, payload);
 
           const response = await fetch(sub.endpoint, {
@@ -310,36 +319,36 @@ serve(async (req) => {
               "Content-Type": "application/octet-stream",
               "Content-Encoding": "aes128gcm",
               Authorization: `vapid t=${jwt}, k=${vapidConfig.public_key}`,
-              TTL: "86400", // 24 hours
-              Urgency: "high", // High priority for immediate delivery
+              TTL: "86400",
+              Urgency: "high",
+              Topic: "picklist",
             },
             body: encryptedBody,
           });
 
           const responseText = await response.text();
-          console.log(`📬 Response from ${sub.endpoint.substring(0, 60)}: ${response.status} ${responseText || '(empty)'}`);
+          console.log(`📬 Response [${sub.device_type}] ${sub.endpoint.substring(0, 50)}: ${response.status}`);
 
           if (response.status === 201 || response.status === 200) {
-            console.log(`✅ Successfully sent to ${sub.endpoint.substring(0, 60)}`);
             sent++;
           } else if (response.status === 404 || response.status === 410) {
-            console.warn(`⚠️ Subscription expired (${response.status}), removing: ${sub.endpoint.substring(0, 60)}`);
+            console.warn(`⚠️ Subscription expired, removing`);
             await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
             failed++;
             errors.push(`Expired (${response.status}): ${sub.endpoint.substring(0, 60)}`);
           } else {
-            console.error(`❌ Failed to send (${response.status}): ${responseText}`);
+            console.error(`❌ Failed (${response.status}): ${responseText}`);
             failed++;
             errors.push(`${response.status}: ${responseText.substring(0, 200)}`);
           }
         } catch (err: any) {
-          console.error(`❌ Push error for ${sub.endpoint.substring(0, 60)}:`, err.message);
+          console.error(`❌ Push error:`, err.message);
           failed++;
           errors.push(`Error: ${err.message}`);
         }
       }
 
-      console.log(`📊 Push delivery summary: ${sent} sent, ${failed} failed, ${subscriptions.length} total`);
+      console.log(`📊 Summary: ${sent} sent, ${failed} failed, ${subscriptions.length} total`);
 
       return new Response(JSON.stringify({ sent, failed, total: subscriptions.length, errors }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
