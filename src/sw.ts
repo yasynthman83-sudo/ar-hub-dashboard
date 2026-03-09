@@ -46,7 +46,7 @@ self.addEventListener('push', function (event) {
     console.log('[SW] ℹ️ No push data, using defaults');
   }
 
-  const options: NotificationOptions = {
+  const options: any = {
     body: body,
     icon: icon,
     badge: badge,
