@@ -2,19 +2,25 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+
+interface Subscriber {
+  id: string;
+  endpoint: string;
+  device_type?: string;
+  created_at: string;
+}
 
 interface DiagnosticState {
   swStatus: "checking" | "active" | "installing" | "waiting" | "none" | "unsupported";
   swScope: string;
   pushPermission: string;
   pushSubscription: boolean;
-  subscriberCount: number;
-  lastSubscription: string | null;
+  subscribers: Subscriber[];
   testResult: { sent: number; failed: number; total: number; errors: string[] } | null;
   loading: boolean;
+  sendTarget: "all" | "mobile" | "desktop";
 }
 
 const Diagnostics = () => {
@@ -23,10 +29,10 @@ const Diagnostics = () => {
     swScope: "",
     pushPermission: "unknown",
     pushSubscription: false,
-    subscriberCount: 0,
-    lastSubscription: null,
+    subscribers: [],
     testResult: null,
     loading: false,
+    sendTarget: "mobile",
   });
 
   useEffect(() => {
@@ -39,44 +45,34 @@ const Diagnostics = () => {
       setState((s) => ({ ...s, swStatus: "unsupported" }));
       return;
     }
-
     const reg = await navigator.serviceWorker.getRegistration();
     if (!reg) {
       setState((s) => ({ ...s, swStatus: "none", swScope: "" }));
       return;
     }
-
     const status = reg.active ? "active" : reg.installing ? "installing" : reg.waiting ? "waiting" : "none";
     const pushPerm = "Notification" in window ? Notification.permission : "unsupported";
     let hasSub = false;
-
     try {
-      const sub = await reg.pushManager?.getSubscription();
-      hasSub = !!sub;
+      hasSub = !!(await reg.pushManager?.getSubscription());
     } catch {}
-
-    setState((s) => ({
-      ...s,
-      swStatus: status,
-      swScope: reg.scope,
-      pushPermission: pushPerm,
-      pushSubscription: hasSub,
-    }));
+    setState((s) => ({ ...s, swStatus: status, swScope: reg.scope, pushPermission: pushPerm, pushSubscription: hasSub }));
   };
 
   const checkSubscribers = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("push_subscriptions")
       .select("*")
       .order("created_at", { ascending: false });
-
-    if (!error && data) {
-      setState((s) => ({
-        ...s,
-        subscriberCount: data.length,
-        lastSubscription: data.length > 0 ? data[0].created_at : null,
-      }));
+    if (data) {
+      setState((s) => ({ ...s, subscribers: data as any }));
     }
+  };
+
+  const deleteSubscription = async (id: string) => {
+    await supabase.from("push_subscriptions").delete().eq("id", id);
+    toast.success("تم حذف الاشتراك");
+    checkSubscribers();
   };
 
   const sendTestPush = async () => {
@@ -84,43 +80,46 @@ const Diagnostics = () => {
     try {
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
       const res = await fetch(
         `https://${projectId}.supabase.co/functions/v1/web-push`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${anonKey}`,
-            apikey: anonKey,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}`, apikey: anonKey },
           body: JSON.stringify({
             action: "send",
             title: "🧪 إشعار تجريبي",
             body: "هذا إشعار تجريبي من صفحة التشخيص",
             url: "/diagnostics",
+            target: state.sendTarget,
           }),
         }
       );
-
       const result = await res.json();
       setState((s) => ({ ...s, testResult: result }));
       toast.success(`تم الإرسال: ${result.sent} نجح، ${result.failed} فشل`);
     } catch (err: any) {
-      toast.error("فشل إرسال الإشعار: " + err.message);
+      toast.error("فشل: " + err.message);
     } finally {
       setState((s) => ({ ...s, loading: false }));
     }
   };
 
-  const statusColor = (status: string) => {
-    switch (status) {
-      case "active": return "bg-green-600 text-white";
-      case "granted": return "bg-green-600 text-white";
-      case "installing":
-      case "waiting": return "bg-yellow-600 text-white";
-      default: return "bg-destructive text-destructive-foreground";
-    }
+  const mobileCount = state.subscribers.filter((s) => ["android", "ios", "mobile"].includes(s.device_type || "")).length;
+  const desktopCount = state.subscribers.filter((s) => s.device_type === "desktop").length;
+  const unknownCount = state.subscribers.filter((s) => !s.device_type || s.device_type === "unknown").length;
+
+  const statusBadge = (val: string, good: string) => (
+    <span className={`px-2 py-1 rounded text-xs font-bold ${val === good ? "bg-green-600/20 text-green-400" : "bg-destructive/20 text-destructive"}`}>
+      {val}
+    </span>
+  );
+
+  const deviceIcon = (type?: string) => {
+    if (type === "android") return "🤖";
+    if (type === "ios") return "🍎";
+    if (type === "mobile") return "📱";
+    if (type === "desktop") return "💻";
+    return "❓";
   };
 
   return (
@@ -129,72 +128,71 @@ const Diagnostics = () => {
         <BackToDashboard />
         <h1 className="text-2xl font-bold text-foreground">🔧 تشخيص نظام الإشعارات</h1>
 
-        {/* Service Worker Status */}
+        {/* SW & Push Status */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">حالة Service Worker</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-lg">حالة النظام</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">الحالة</span>
-              <Badge className={statusColor(state.swStatus)}>{state.swStatus}</Badge>
+              <span className="text-muted-foreground">Service Worker</span>
+              {statusBadge(state.swStatus, "active")}
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">النطاق</span>
-              <span className="text-card-foreground text-sm font-mono">{state.swScope || "—"}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Push Notifications */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">إشعارات الدفع</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">صلاحية الإشعارات</span>
-              <Badge className={statusColor(state.pushPermission)}>{state.pushPermission}</Badge>
+              {statusBadge(state.pushPermission, "granted")}
             </div>
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">اشتراك Push نشط</span>
-              <Badge className={state.pushSubscription ? "bg-green-600 text-white" : "bg-destructive text-destructive-foreground"}>
-                {state.pushSubscription ? "نعم ✅" : "لا ❌"}
-              </Badge>
+              {statusBadge(state.pushSubscription ? "نعم" : "لا", "نعم")}
             </div>
           </CardContent>
         </Card>
 
         {/* Subscribers */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">المشتركين</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-lg">المشتركين ({state.subscribers.length})</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">عدد المشتركين</span>
-              <span className="text-2xl font-bold text-primary">{state.subscriberCount}</span>
+            <div className="flex gap-4 text-sm">
+              <span>📱 موبايل: <strong className="text-primary">{mobileCount}</strong></span>
+              <span>💻 سطح المكتب: <strong className="text-primary">{desktopCount}</strong></span>
+              {unknownCount > 0 && <span>❓ غير محدد: <strong>{unknownCount}</strong></span>}
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">آخر اشتراك</span>
-              <span className="text-card-foreground text-sm">
-                {state.lastSubscription
-                  ? new Date(state.lastSubscription).toLocaleString("ar-SA")
-                  : "—"}
-              </span>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {state.subscribers.map((sub) => (
+                <div key={sub.id} className="flex items-center justify-between gap-2 p-2 rounded bg-muted/50 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-lg">{deviceIcon(sub.device_type)}</span>
+                    <div className="truncate">
+                      <span className="text-muted-foreground">{sub.endpoint.substring(0, 60)}...</span>
+                      <br />
+                      <span className="text-muted-foreground">{new Date(sub.created_at).toLocaleString("ar-SA")}</span>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" className="text-destructive shrink-0" onClick={() => deleteSubscription(sub.id)}>
+                    🗑️
+                  </Button>
+                </div>
+              ))}
             </div>
-            <Button variant="outline" size="sm" onClick={checkSubscribers}>
-              🔄 تحديث
-            </Button>
+            <Button variant="outline" size="sm" onClick={checkSubscribers}>🔄 تحديث</Button>
           </CardContent>
         </Card>
 
         {/* Test Push */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">إرسال إشعار تجريبي</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-lg">إرسال إشعار تجريبي</CardTitle></CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex gap-2">
+              {(["mobile", "desktop", "all"] as const).map((t) => (
+                <Button
+                  key={t}
+                  variant={state.sendTarget === t ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setState((s) => ({ ...s, sendTarget: t }))}
+                >
+                  {t === "mobile" ? "📱 موبايل فقط" : t === "desktop" ? "💻 سطح المكتب" : "🌐 الكل"}
+                </Button>
+              ))}
+            </div>
             <Button onClick={sendTestPush} disabled={state.loading} className="w-full">
               {state.loading ? "جاري الإرسال..." : "🚀 إرسال إشعار تجريبي"}
             </Button>
@@ -203,7 +201,7 @@ const Diagnostics = () => {
               <div className="rounded-lg border border-border p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">إجمالي</span>
-                  <span className="text-card-foreground font-bold">{state.testResult.total}</span>
+                  <span className="font-bold">{state.testResult.total}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">نجح</span>
@@ -223,9 +221,7 @@ const Diagnostics = () => {
                 )}
                 {state.testResult.errors.length > 0 && (
                   <div className="mt-2 text-xs text-destructive space-y-1">
-                    {state.testResult.errors.map((e, i) => (
-                      <p key={i}>⚠️ {e}</p>
-                    ))}
+                    {state.testResult.errors.map((e, i) => <p key={i}>⚠️ {e}</p>)}
                   </div>
                 )}
               </div>
