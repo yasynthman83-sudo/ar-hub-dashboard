@@ -222,6 +222,9 @@ export function useRealtimeNotifications() {
 
     return () => {
       supabase.removeChannel(channel);
+      if (revalidationInterval.current) {
+        clearInterval(revalidationInterval.current);
+      }
     };
   }, []);
 }

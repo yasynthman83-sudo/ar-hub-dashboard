@@ -295,6 +295,8 @@ serve(async (req) => {
 
       for (const sub of subscriptions) {
         try {
+          console.log(`🚀 Sending to: ${sub.endpoint.substring(0, 80)}...`);
+          
           const endpointUrl = new URL(sub.endpoint);
           const audience = `${endpointUrl.protocol}//${endpointUrl.host}`;
           const jwt = await createJwt(audience, privateKeyJwk);
@@ -308,31 +310,36 @@ serve(async (req) => {
               "Content-Type": "application/octet-stream",
               "Content-Encoding": "aes128gcm",
               Authorization: `vapid t=${jwt}, k=${vapidConfig.public_key}`,
-              TTL: "86400",
-              Urgency: "high",
+              TTL: "86400", // 24 hours
+              Urgency: "high", // High priority for immediate delivery
             },
             body: encryptedBody,
           });
 
           const responseText = await response.text();
-          console.log(`Push to ${sub.endpoint.substring(0, 60)}: ${response.status} ${responseText}`);
+          console.log(`📬 Response from ${sub.endpoint.substring(0, 60)}: ${response.status} ${responseText || '(empty)'}`);
 
           if (response.status === 201 || response.status === 200) {
+            console.log(`✅ Successfully sent to ${sub.endpoint.substring(0, 60)}`);
             sent++;
           } else if (response.status === 404 || response.status === 410) {
+            console.warn(`⚠️ Subscription expired (${response.status}), removing: ${sub.endpoint.substring(0, 60)}`);
             await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
             failed++;
-            errors.push(`Expired: ${sub.endpoint.substring(0, 60)}`);
+            errors.push(`Expired (${response.status}): ${sub.endpoint.substring(0, 60)}`);
           } else {
+            console.error(`❌ Failed to send (${response.status}): ${responseText}`);
             failed++;
             errors.push(`${response.status}: ${responseText.substring(0, 200)}`);
           }
-        } catch (err) {
-          console.error(`Push error for ${sub.endpoint.substring(0, 60)}:`, err.message);
+        } catch (err: any) {
+          console.error(`❌ Push error for ${sub.endpoint.substring(0, 60)}:`, err.message);
           failed++;
           errors.push(`Error: ${err.message}`);
         }
       }
+
+      console.log(`📊 Push delivery summary: ${sent} sent, ${failed} failed, ${subscriptions.length} total`);
 
       return new Response(JSON.stringify({ sent, failed, total: subscriptions.length, errors }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

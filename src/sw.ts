@@ -77,19 +77,39 @@ self.addEventListener('push', function (event) {
 });
 
 self.addEventListener('notificationclick', function (event) {
-  console.log('[SW] Notification clicked');
+  console.log('[SW] 👆 Notification clicked:', event.notification.data);
   event.notification.close();
+
+  // Get target URL from notification data
+  const urlToOpen = event.notification.data?.clickAction || event.notification.data?.url || '/';
+  console.log('[SW] 🔗 Opening URL:', urlToOpen);
 
   event.waitUntil(
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then(function (clientList) {
+        console.log('[SW] 🔍 Found clients:', clientList.length);
+        
+        // Check if there's already a window/tab open with the target URL
         for (const client of clientList) {
-          if ('focus' in client) {
+          if (client.url === urlToOpen && 'focus' in client) {
+            console.log('[SW] ✅ Focusing existing window');
             return client.focus();
           }
         }
-        return self.clients.openWindow('/');
+        
+        // If no matching client, focus any client or open new window
+        if (clientList.length > 0 && 'focus' in clientList[0]) {
+          console.log('[SW] ✅ Focusing first client and navigating');
+          return clientList[0].focus().then(() => clientList[0].navigate(urlToOpen));
+        }
+        
+        // No clients open, open new window
+        console.log('[SW] ✅ Opening new window');
+        return self.clients.openWindow(urlToOpen);
+      })
+      .catch((error) => {
+        console.error('[SW] ❌ Failed to handle notification click:', error);
       })
   );
 });
