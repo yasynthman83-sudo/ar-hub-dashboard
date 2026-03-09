@@ -212,7 +212,7 @@ serve(async (req) => {
     if (body.type === "INSERT" && body.record) {
       console.log("📨 Received Database Webhook trigger:", JSON.stringify(body).substring(0, 200));
       console.log("📋 Triggering push notification for new record");
-      body = { action: "send", title: "📋 New Pick List", body: "بكلست جديدة", url: "/" };
+      body = { action: "send", title: "📋 New Pick List", body: "بكلست جديدة", url: "/", target: "mobile" };
     }
 
     const actionFinal = body.action || action;
