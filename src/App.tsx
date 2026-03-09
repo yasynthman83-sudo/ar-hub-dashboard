@@ -8,13 +8,11 @@ import ExternalView from "./pages/ExternalView";
 import Diagnostics from "./pages/Diagnostics";
 import NotFound from "./pages/NotFound";
 import { useRealtimeNotifications } from "./hooks/useRealtimeNotifications";
-import { useNativePush } from "./hooks/useNativePush";
 
 const queryClient = new QueryClient();
 
 const App = () => {
   useRealtimeNotifications();
-  useNativePush();
 
   return (
   <QueryClientProvider client={queryClient}>
