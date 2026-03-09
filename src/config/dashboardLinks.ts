@@ -35,4 +35,12 @@ export const dashboardLinks: DashboardLink[] = [
     icon: "Package",
     color: "green",
   },
+  {
+    id: "diagnostics",
+    title: "تشخيص الإشعارات",
+    description: "فحص حالة نظام الإشعارات",
+    url: "/diagnostics",
+    icon: "Activity",
+    color: "purple",
+  },
 ];
