@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Download, X } from "lucide-react";
+import { useState, useEffect, forwardRef } from "react";
+import { Download, X, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -7,7 +7,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-export const InstallPWA = () => {
+export const InstallPWA = forwardRef<HTMLDivElement>((_, ref) => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
@@ -65,45 +65,72 @@ export const InstallPWA = () => {
   if (!showBanner) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md">
-      <div className="bg-card border border-border rounded-2xl p-4 shadow-lg flex flex-col gap-3">
+    <div ref={ref} className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md">
+      <div className="bg-gradient-to-br from-primary/10 via-card to-secondary/10 border-2 border-primary/20 rounded-2xl p-5 shadow-2xl flex flex-col gap-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-3">
-            <div className="bg-primary/10 rounded-xl p-2">
-              <Download className="h-6 w-6 text-primary" />
+            <div className="bg-primary rounded-xl p-3 shadow-lg">
+              <Smartphone className="h-7 w-7 text-primary-foreground" />
             </div>
             <div>
-              <p className="font-bold text-foreground text-sm">تثبيت التطبيق</p>
-              <p className="text-muted-foreground text-xs">
-                ثبّت التطبيق للوصول السريع والإشعارات
+              <p className="font-bold text-foreground text-base">📱 تثبيت التطبيق على الهاتف</p>
+              <p className="text-muted-foreground text-xs mt-0.5">
+                الإشعارات تعمل <strong className="text-primary">فقط</strong> على الهاتف المُثبت عليه التطبيق
               </p>
             </div>
           </div>
-          <button onClick={handleDismiss} className="text-muted-foreground hover:text-foreground">
+          <button onClick={handleDismiss} className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {showIOSGuide ? (
-          <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 space-y-1">
-            <p className="font-semibold text-foreground">على iOS:</p>
-            <p>1. اضغط على زر المشاركة <span className="inline-block">⬆️</span> في الأسفل</p>
-            <p>2. اختر <strong>"إضافة إلى الشاشة الرئيسية"</strong></p>
-            <p>3. اضغط <strong>"إضافة"</strong></p>
-            <p className="mt-2 font-semibold text-warning">⚠️ الإشعارات تعمل فقط بعد التثبيت!</p>
+          <div className="text-xs text-foreground bg-gradient-to-br from-warning/20 to-warning/5 border border-warning/30 rounded-xl p-4 space-y-2">
+            <p className="font-bold text-base flex items-center gap-2">
+              <span>🍎</span>
+              <span>خطوات التثبيت على iPhone</span>
+            </p>
+            <div className="space-y-1.5 mr-2">
+              <p>1️⃣ اضغط على زر المشاركة <span className="inline-block text-lg">⬆️</span> أسفل الشاشة</p>
+              <p>2️⃣ اختر <strong className="text-warning">"إضافة إلى الشاشة الرئيسية"</strong></p>
+              <p>3️⃣ اضغط <strong className="text-warning">"إضافة"</strong></p>
+              <p>4️⃣ افتح التطبيق من الشاشة الرئيسية واسمح بالإشعارات</p>
+            </div>
+            <div className="mt-3 pt-3 border-t border-warning/20">
+              <p className="font-bold text-destructive flex items-center gap-1.5">
+                <span className="text-base">⚠️</span>
+                <span>مهم جداً:</span>
+              </p>
+              <p className="mt-1">الإشعارات <strong>لن تعمل</strong> إلا بعد التثبيت على الشاشة الرئيسية وفتح التطبيق منها!</p>
+            </div>
           </div>
         ) : (
-          <div className="space-y-2">
-            <Button onClick={handleInstall} className="w-full" size="sm">
-              <Download className="h-4 w-4 ml-2" />
-              تثبيت الآن
+          <div className="space-y-3">
+            <div className="text-xs text-foreground bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 rounded-xl p-4 space-y-2">
+              <p className="font-bold text-base flex items-center gap-2">
+                <span>🤖</span>
+                <span>خطوات التثبيت على Android</span>
+              </p>
+              <div className="space-y-1.5 mr-2">
+                <p>1️⃣ اضغط على زر "تثبيت الآن" أدناه</p>
+                <p>2️⃣ اسمح بالتثبيت عند ظهور النافذة</p>
+                <p>3️⃣ افتح التطبيق من الشاشة الرئيسية واسمح بالإشعارات</p>
+              </div>
+              <div className="mt-3 pt-3 border-t border-primary/20">
+                <p className="font-bold text-destructive flex items-center gap-1.5">
+                  <span className="text-base">⚠️</span>
+                  <span>مهم جداً:</span>
+                </p>
+                <p className="mt-1">الإشعارات تعمل <strong>فقط على الهاتف</strong> وبعد تثبيت التطبيق والسماح بالإشعارات!</p>
+              </div>
+            </div>
+            <Button onClick={handleInstall} className="w-full shadow-lg" size="lg">
+              <Download className="h-5 w-5 ml-2" />
+              تثبيت الآن على الهاتف
             </Button>
-            <p className="text-xs text-center text-muted-foreground">
-              💡 التثبيت مطلوب لتلقي الإشعارات عند إغلاق المتصفح
-            </p>
           </div>
         )}
       </div>
     </div>
   );
-};
+});
