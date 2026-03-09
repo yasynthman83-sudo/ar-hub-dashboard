@@ -26,6 +26,11 @@ async function subscribeToPush() {
 
       console.log("✅ SW ready, scope:", registration.scope);
 
+      // Verify SW is active
+      if (!registration.active) {
+        throw new Error("SW registered but not active yet");
+      }
+
       // Check existing subscription
       let subscription = await registration.pushManager.getSubscription();
 
