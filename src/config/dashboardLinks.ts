@@ -23,7 +23,7 @@ export const dashboardLinks: DashboardLink[] = [
     id: "2",
     title: "كانسل وبحث",
     description: "البحث وإلغاء الطلبات",
-    url: "https://scan-find-assign.lovable.app/search",
+    url: "https://warehousemgr.lovable.app/inventory/search",
     icon: "Search",
     color: "orange",
   },
