@@ -5,7 +5,7 @@ import logo from "@/assets/logo.png";
 // قائمة النطاقات المسموح بها فقط
 const ALLOWED_ORIGINS = [
   "https://easy-fulfillment.lovable.app",
-  "https://scan-find-assign.lovable.app",
+  "https://warehousemgr.lovable.app",
   "https://baker-leave-buddy.lovable.app",
 ];
 
