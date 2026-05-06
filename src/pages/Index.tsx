@@ -1,6 +1,6 @@
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { DashboardCard } from "@/components/DashboardCard";
-import { InstallPWA } from "@/components/InstallPWA";
+
 import { dashboardLinks } from "@/config/dashboardLinks";
 
 const Index = () => {
@@ -19,7 +19,7 @@ const Index = () => {
           <p>جميع الحقوق محفوظة © {new Date().getFullYear()} فدشي</p>
         </footer>
       </div>
-      <InstallPWA />
+      
     </div>
   );
 };
