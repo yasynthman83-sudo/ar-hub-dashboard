@@ -67,7 +67,7 @@ export default function ExternalView() {
         </div>
       </header>
 
-      {isPicker && selection && <div className="flex shrink-0 justify-center border-b border-border bg-card px-4 py-2"><Button onPointerDown={(event) => event.preventDefault()} onClick={() => setItemText(selection)}><Search />عرض تفاصيل الايتم</Button></div>}
+      {isPicker && <Button className="fixed bottom-6 left-4 z-40 max-w-[calc(100%-2rem)] shadow-lg sm:left-6" onPointerDown={(event) => event.preventDefault()} onClick={() => setItemText(selection)}><Search />عرض تفاصيل الايتم</Button>}
       {/* Keep the picker mounted while details are open to preserve its state. */}
       <iframe
         ref={frame}
