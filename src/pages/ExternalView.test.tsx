@@ -26,28 +26,53 @@ describe("picklist item details flow", () => {
     expect(screen.getByTitle("بكلست")).toBe(picker);
     expect(picker.src).toBe(`${pickerOrigin}/picker-login`);
   });
-  it("reads clipboard only on request and copies the item for manual search", async () => {
+  it("reads clipboard on opening empty details and updates both query parameters on paste", async () => {
     const readText = vi.fn().mockResolvedValue("  VFID-123  ");
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.spyOn(navigator, "clipboard", "get").mockReturnValue({ readText, writeText } as unknown as Clipboard);
     const params = new URLSearchParams({ url: `${pickerOrigin}/picker-login`, title: "بكلست" });
     render(<MemoryRouter initialEntries={[`/view?${params}`]}><ExternalView /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: "عرض تفاصيل الايتم" }));
     expect(readText).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "لصق من الحافظة" }));
+    fireEvent.click(screen.getByRole("button", { name: "عرض تفاصيل الايتم" }));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "نص الايتم" })).toHaveValue("VFID-123"));
+    expect(readText).toHaveBeenCalledTimes(1);
+    const searchFrame = screen.getByTitle("كانسل وبحث — تفاصيل الايتم") as HTMLIFrameElement;
+    expect(searchFrame.src).toBe(`${searchOrigin}/inventory/search?q=VFID-123&search=VFID-123`);
+    readText.mockResolvedValue("  UPC-456  ");
+    fireEvent.click(screen.getByRole("button", { name: "لصق من الحافظة" }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "نص الايتم" })).toHaveValue("UPC-456"));
+    expect(searchFrame.src).toBe(`${searchOrigin}/inventory/search?q=UPC-456&search=UPC-456`);
     fireEvent.click(screen.getByRole("button", { name: "نسخ نص الايتم" }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith("VFID-123"));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("UPC-456"));
   });
   it("allows manual paste when clipboard permission is denied", async () => {
     vi.spyOn(navigator, "clipboard", "get").mockReturnValue({ readText: vi.fn().mockRejectedValue(new Error("Denied")) } as unknown as Clipboard);
     const params = new URLSearchParams({ url: `${pickerOrigin}/picker-login`, title: "بكلست" });
     render(<MemoryRouter initialEntries={[`/view?${params}`]}><ExternalView /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "عرض تفاصيل الايتم" }));
+    await screen.findByRole("textbox", { name: "نص الايتم" });
     fireEvent.click(screen.getByRole("button", { name: "لصق من الحافظة" }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     fireEvent.change(screen.getByRole("textbox", { name: "نص الايتم" }), { target: { value: "UPC-456" } });
     expect(screen.getByRole("textbox", { name: "نص الايتم" })).toHaveValue("UPC-456");
+  });
+  it("keeps validated selection instead of reading clipboard and updates the URL on manual edits", () => {
+    const readText = vi.fn();
+    vi.spyOn(navigator, "clipboard", "get").mockReturnValue({ readText } as unknown as Clipboard);
+    const params = new URLSearchParams({ url: `${pickerOrigin}/picker-login`, title: "بكلست" });
+    render(<MemoryRouter initialEntries={[`/view?${params}`]}><ExternalView /></MemoryRouter>);
+    const picker = screen.getByTitle("بكلست") as HTMLIFrameElement;
+    fireEvent(window, new MessageEvent("message", { source: picker.contentWindow, origin: pickerOrigin, data: { type: "fadshi:item-selection", text: "SELECTED-123" } }));
+    fireEvent.click(screen.getByRole("button", { name: "عرض تفاصيل الايتم" }));
+    expect(readText).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "نص الايتم" })).toHaveValue("SELECTED-123");
+    const searchFrame = screen.getByTitle("كانسل وبحث — تفاصيل الايتم") as HTMLIFrameElement;
+    fireEvent.change(screen.getByRole("textbox", { name: "نص الايتم" }), { target: { value: "صنف & /?" } });
+    expect(searchFrame.src).toBe(`${searchOrigin}/inventory/search?q=${encodeURIComponent("صنف & /?")}&search=${encodeURIComponent("صنف & /?")}`);
+    fireEvent.change(screen.getByRole("textbox", { name: "نص الايتم" }), { target: { value: "" } });
+    expect(searchFrame.src).toBe(`${searchOrigin}/inventory/search`);
+    fireEvent.click(screen.getByRole("button", { name: "إغلاق تفاصيل الايتم" }));
+    expect(screen.getByTitle("بكلست")).toBe(picker);
   });
   it("never shows the picklist selection action inside cancel and search", () => {
     const params = new URLSearchParams({ url: `${searchOrigin}/inventory/search`, title: "كانسل وبحث" });

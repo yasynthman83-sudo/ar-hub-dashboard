@@ -33,6 +33,18 @@ export default function ExternalView() {
     navigate("/");
   };
 
+  const openItemDetails = async () => {
+    let text = selection.trim();
+    if (!text && navigator.clipboard?.readText) {
+      try {
+        text = (await navigator.clipboard.readText()).trim();
+      } catch {
+        // Clipboard access is optional; keep manual input available.
+      }
+    }
+    setItemText(text);
+  };
+
   if (!url || !urlAllowed) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
@@ -67,7 +79,7 @@ export default function ExternalView() {
         </div>
       </header>
 
-      {isPicker && <Button className="fixed bottom-6 left-4 z-40 max-w-[calc(100%-2rem)] shadow-lg sm:left-6" onPointerDown={(event) => event.preventDefault()} onClick={() => setItemText(selection)}><Search />عرض تفاصيل الايتم</Button>}
+      {isPicker && <Button className="fixed bottom-6 left-4 z-40 max-w-[calc(100%-2rem)] shadow-lg sm:left-6" onPointerDown={(event) => event.preventDefault()} onClick={openItemDetails}><Search />عرض تفاصيل الايتم</Button>}
       {/* Keep the picker mounted while details are open to preserve its state. */}
       <iframe
         ref={frame}

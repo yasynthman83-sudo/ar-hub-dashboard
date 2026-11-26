@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogPortal, DialogOverlay, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { searchUrl } from "@/lib/itemDetailsBridge";
+import { itemSearchUrl } from "@/lib/itemDetailsBridge";
 
 interface Props {
   text: string;
@@ -75,7 +75,7 @@ export function ItemDetailsOverlay({ text, onClose }: Props) {
             {copied && <p role="status" className="mt-2 text-sm text-muted-foreground">تم النسخ</p>}
             {error && <p role="alert" className="mt-2 text-sm text-muted-foreground">{error}</p>}
           </div>
-          <iframe src={searchUrl} title="كانسل وبحث — تفاصيل الايتم" className="min-h-0 w-full flex-1 border-0" allow="camera; microphone; fullscreen; geolocation; clipboard-read; clipboard-write" allowFullScreen />
+          <iframe src={itemSearchUrl(value)} title="كانسل وبحث — تفاصيل الايتم" className="min-h-0 w-full flex-1 border-0" allow="camera; microphone; fullscreen; geolocation; clipboard-read; clipboard-write" allowFullScreen />
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>
