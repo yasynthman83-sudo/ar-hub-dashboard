@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import ExternalView from "./ExternalView";
@@ -20,43 +20,31 @@ describe("picklist item details flow", () => {
     const picker = screen.getByTitle("بكلست") as HTMLIFrameElement;
     fireEvent.click(screen.getByRole("button", { name: "عرض تفاصيل الايتم" }));
     expect((screen.getByTitle("كانسل وبحث — تفاصيل الايتم") as HTMLIFrameElement).src).toBe(`${searchOrigin}/inventory/search`);
-    expect(screen.getByRole("textbox", { name: "نص الايتم" })).toHaveValue("");
     fireEvent.click(screen.getByRole("button", { name: "إغلاق تفاصيل الايتم" }));
     expect(screen.queryByTitle("كانسل وبحث — تفاصيل الايتم")).toBeNull();
     expect(screen.getByTitle("بكلست")).toBe(picker);
     expect(picker.src).toBe(`${pickerOrigin}/picker-login`);
   });
-  it("reads clipboard on opening empty details and updates both query parameters on paste", async () => {
-    const readText = vi.fn().mockResolvedValue("  VFID-123  ");
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    vi.spyOn(navigator, "clipboard", "get").mockReturnValue({ readText, writeText } as unknown as Clipboard);
+  it("reads clipboard only on opening and passes encoded text through both parameters", async () => {
+    const readText = vi.fn().mockResolvedValue("  صنف & /?  ");
+    vi.spyOn(navigator, "clipboard", "get").mockReturnValue({ readText } as unknown as Clipboard);
     const params = new URLSearchParams({ url: `${pickerOrigin}/picker-login`, title: "بكلست" });
     render(<MemoryRouter initialEntries={[`/view?${params}`]}><ExternalView /></MemoryRouter>);
     expect(readText).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "عرض تفاصيل الايتم" }));
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "نص الايتم" })).toHaveValue("VFID-123"));
+    const searchFrame = await screen.findByTitle("كانسل وبحث — تفاصيل الايتم") as HTMLIFrameElement;
     expect(readText).toHaveBeenCalledTimes(1);
-    const searchFrame = screen.getByTitle("كانسل وبحث — تفاصيل الايتم") as HTMLIFrameElement;
-    expect(searchFrame.src).toBe(`${searchOrigin}/inventory/search?q=VFID-123&search=VFID-123`);
-    readText.mockResolvedValue("  UPC-456  ");
-    fireEvent.click(screen.getByRole("button", { name: "لصق من الحافظة" }));
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "نص الايتم" })).toHaveValue("UPC-456"));
-    expect(searchFrame.src).toBe(`${searchOrigin}/inventory/search?q=UPC-456&search=UPC-456`);
-    fireEvent.click(screen.getByRole("button", { name: "نسخ نص الايتم" }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith("UPC-456"));
+    expect(searchFrame.src).toBe(`${searchOrigin}/inventory/search?q=${encodeURIComponent("صنف & /?")}&search=${encodeURIComponent("صنف & /?")}`);
   });
-  it("allows manual paste when clipboard permission is denied", async () => {
+  it("opens the destination without query text when clipboard permission is denied", async () => {
     vi.spyOn(navigator, "clipboard", "get").mockReturnValue({ readText: vi.fn().mockRejectedValue(new Error("Denied")) } as unknown as Clipboard);
     const params = new URLSearchParams({ url: `${pickerOrigin}/picker-login`, title: "بكلست" });
     render(<MemoryRouter initialEntries={[`/view?${params}`]}><ExternalView /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "عرض تفاصيل الايتم" }));
-    await screen.findByRole("textbox", { name: "نص الايتم" });
-    fireEvent.click(screen.getByRole("button", { name: "لصق من الحافظة" }));
-    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    fireEvent.change(screen.getByRole("textbox", { name: "نص الايتم" }), { target: { value: "UPC-456" } });
-    expect(screen.getByRole("textbox", { name: "نص الايتم" })).toHaveValue("UPC-456");
+    const searchFrame = await screen.findByTitle("كانسل وبحث — تفاصيل الايتم") as HTMLIFrameElement;
+    expect(searchFrame.src).toBe(`${searchOrigin}/inventory/search`);
   });
-  it("keeps validated selection instead of reading clipboard and updates the URL on manual edits", () => {
+  it("uses validated selection without reading clipboard and preserves picklist on close", () => {
     const readText = vi.fn();
     vi.spyOn(navigator, "clipboard", "get").mockReturnValue({ readText } as unknown as Clipboard);
     const params = new URLSearchParams({ url: `${pickerOrigin}/picker-login`, title: "بكلست" });
@@ -65,12 +53,8 @@ describe("picklist item details flow", () => {
     fireEvent(window, new MessageEvent("message", { source: picker.contentWindow, origin: pickerOrigin, data: { type: "fadshi:item-selection", text: "SELECTED-123" } }));
     fireEvent.click(screen.getByRole("button", { name: "عرض تفاصيل الايتم" }));
     expect(readText).not.toHaveBeenCalled();
-    expect(screen.getByRole("textbox", { name: "نص الايتم" })).toHaveValue("SELECTED-123");
     const searchFrame = screen.getByTitle("كانسل وبحث — تفاصيل الايتم") as HTMLIFrameElement;
-    fireEvent.change(screen.getByRole("textbox", { name: "نص الايتم" }), { target: { value: "صنف & /?" } });
-    expect(searchFrame.src).toBe(`${searchOrigin}/inventory/search?q=${encodeURIComponent("صنف & /?")}&search=${encodeURIComponent("صنف & /?")}`);
-    fireEvent.change(screen.getByRole("textbox", { name: "نص الايتم" }), { target: { value: "" } });
-    expect(searchFrame.src).toBe(`${searchOrigin}/inventory/search`);
+    expect(searchFrame.src).toBe(`${searchOrigin}/inventory/search?q=SELECTED-123&search=SELECTED-123`);
     fireEvent.click(screen.getByRole("button", { name: "إغلاق تفاصيل الايتم" }));
     expect(screen.getByTitle("بكلست")).toBe(picker);
   });
@@ -80,14 +64,5 @@ describe("picklist item details flow", () => {
     const frame = screen.getByTitle("كانسل وبحث") as HTMLIFrameElement;
     fireEvent(window, new MessageEvent("message", { source: frame.contentWindow, origin: pickerOrigin, data: { type: "fadshi:item-selection", text: "123" } }));
     expect(screen.queryByRole("button", { name: "عرض تفاصيل الايتم" })).toBeNull();
-  });
-  it("keeps manual entry available when clipboard API is missing", () => {
-    const params = new URLSearchParams({ url: `${pickerOrigin}/picker-login`, title: "بكلست" });
-    render(<MemoryRouter initialEntries={[`/view?${params}`]}><ExternalView /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: "عرض تفاصيل الايتم" }));
-    fireEvent.click(screen.getByRole("button", { name: "لصق من الحافظة" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "نص الايتم" }), { target: { value: "123456" } });
-    expect(screen.getByRole("textbox", { name: "نص الايتم" })).toHaveValue("123456");
-    expect(screen.getByRole("button", { name: "نسخ نص الايتم" })).toBeEnabled();
   });
 });
